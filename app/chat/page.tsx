@@ -4,60 +4,130 @@ import { useState, useRef, useEffect } from 'react';
 type Msg = {id: number; text: string; isUser: boolean}
 
 const s = {
-  container: {display:'flex', flexDirection:'column' as const, height:'100vh', maxHeight:'500px', background:'#fff', borderRadius:'12px', overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.1)', fontFamily:'system-ui'},
-  header: {display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 15px', background:'#fff', color:'#000'},
-  title: {margin:0, fontSize:'16px', color:'#000'},
-  close: {background:'none', border:'none', color:'#888', fontSize:'20px', cursor:'pointer', padding:'0 5px'},
-  msgList: {flex:1, padding:'15px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'8px'},
-  msg: {maxWidth:'80%', padding:'8px 12px', borderRadius:'16px', wordBreak:'break-word' as const},
-  userMsg: {alignSelf:'flex-end', background:'#000', color:'#fff'},
-  botMsg: {alignSelf:'flex-start', background:'#f2f2f7', color:'#000'},
-  inputArea: {display:'flex', padding:'10px', borderTop:'1px solid #e0e0e0'},
-  input: {flex:1, padding:'8px 12px', border:'1px solid #ccc', borderRadius:'4px', outline:'none', color:'#000'},
-  send: {marginLeft:'8px', padding:'8px 16px', background:'#000', color:'#fff', border:'none', borderRadius:'4px', cursor:'pointer'}
+  container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
+  header: {display:'flex', justifyContent:'flex-start', padding:'8px', position:'absolute' as const, top:'0', left:'0', zIndex:10},
+  expandBtn: {width:'28px', height:'28px', background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', transition:'all 0.2s'},
+  msgList: {flex:1, padding:'16px', paddingTop:'44px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', justifyContent:'flex-end'},
+  msgWrapper: {display:'flex', alignItems:'flex-end', gap:'8px', maxWidth:'85%'},
+  userMsg: {alignSelf:'flex-end', background:'#fff', color:'#000', marginLeft:'auto', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'85%', border:'1px solid rgba(0,0,0,0.08)'},
+  botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4'},
+  avatar: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0},
+  avatarPlaceholder: {width:'18px', height:'18px', flexShrink:0},
+  timestamp: {fontSize:'11px', color:'#999', marginTop:'4px', textAlign:'center' as const}
 };
 
 export default function Chat() {
-  const [msgs, setMsgs] = useState<Msg[]>([{id:1, text:'Hello! How can I help you today?', isUser:false}]);
-  const [input, setInput] = useState('');
+  const [msgs, setMsgs] = useState<Msg[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => endRef.current?.scrollIntoView({behavior:'smooth'}), [msgs]);
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .msg-list {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0,0,0,0.2) transparent;
+        scroll-behavior: smooth;
+      }
+      
+      .msg-list::-webkit-scrollbar {
+        width: 6px;
+      }
+      
+      .msg-list::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      .msg-list::-webkit-scrollbar-thumb {
+        background-color: rgba(0,0,0,0.2);
+        border-radius: 3px;
+      }
+      
+      .expand-btn:hover {
+        background: #f5f5f5 !important;
+        transform: scale(1.05);
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (endRef.current) {
+      endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, [msgs]);
+  
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'config') return null;
       if (e.data?.type === 'search' && typeof e.data.text === 'string') {
-        setInput(e.data.text);
-        setTimeout(() => send(e.data.text), 0);
+        // Add user message
+        const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
+        setMsgs(m => [...m, userMsg]);
+        
+        // Simulate bot response
+        setTimeout(() => {
+          const responses = [
+            `Ich habe "${e.data.text}" erhalten. Wie kann ich dir dabei helfen?`,
+            `Danke für deine Nachricht. Lass mich das für dich überprüfen.`,
+            `Interessante Frage zu "${e.data.text}". Hier ist was ich denke...`
+          ];
+          const botMsg = {
+            id: Date.now() + 1, 
+            text: responses[Math.floor(Math.random() * responses.length)], 
+            isUser: false
+          };
+          setMsgs(m => [...m, botMsg]);
+        }, 800);
       }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  const send = (msg?: string) => {
-    const message = typeof msg === 'string' ? msg : input;
-    if (!message.trim()) return;
-    const newMsg = {id: msgs.length + 1, text: message, isUser: true};
-    setMsgs(m => [...m, newMsg]);
-    setInput('');
-    
-    setTimeout(() => {
-      setMsgs(m => [...m, {id: m.length + 2, text: `You said: "${message}"`, isUser: false}]);
-    }, 500);
+  const handleExpand = () => {
+    window.parent.postMessage({type: 'expandChat'}, '*');
   };
 
   return (
-    <div style={s.container}>
+    <div ref={containerRef} style={s.container}>
       <div style={s.header}>
-        <h3 style={s.title}>Chat Support</h3>
-        <button onClick={() => window.parent.postMessage({type:'chatClose'}, '*')} style={s.close}>×</button>
+        <button 
+          className="expand-btn"
+          style={s.expandBtn}
+          onClick={handleExpand}
+          title="Expand Chat"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
       </div>
-      
-      <div style={s.msgList}>
-        {msgs.map((m, idx) => (
-          <div key={m.id + '-' + idx} style={{...s.msg, ...(m.isUser ? s.userMsg : s.botMsg)}}>{m.text}</div>
-        ))}
+      <div className="msg-list" style={s.msgList}>
+        {msgs.map((m, index) => {
+          // Find if this is the last bot message
+          const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
+          
+          return m.isUser ? (
+            <div key={m.id} style={s.userMsg}>{m.text}</div>
+          ) : (
+            <div key={m.id} style={s.msgWrapper}>
+              {isLastBotMessage ? (
+                <img 
+                  src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
+                  alt="Assistant"
+                  style={s.avatar}
+                />
+              ) : (
+                <div style={s.avatarPlaceholder} />
+              )}
+              <div style={s.botMsg}>{m.text}</div>
+            </div>
+          );
+        })}
         <div ref={endRef} />
       </div>
     </div>
