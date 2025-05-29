@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET() {
   const scriptContent = `window.embedApp = window.embedApp || {};
 window.embedApp.config = {
-  color: "#3B82F6",
+  color: "#FFFFFF",
   variant: "solid",
   themeMode: "light",
   fontFamily: "inter",

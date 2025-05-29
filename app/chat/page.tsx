@@ -4,17 +4,17 @@ import { useState, useRef, useEffect } from 'react';
 type Msg = {id: number; text: string; isUser: boolean}
 
 const s = {
-  container: {display:'flex', flexDirection:'column' as const, height:'100vh', maxHeight:'500px', background:'white', borderRadius:'8px', overflow:'hidden', boxShadow:'0 2px 10px rgba(0,0,0,0.1)', fontFamily:'system-ui'},
-  header: {display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 15px', background:'#3B82F6', color:'white'},
-  title: {margin:0, fontSize:'16px'},
-  close: {background:'none', border:'none', color:'white', fontSize:'20px', cursor:'pointer', padding:'0 5px'},
+  container: {display:'flex', flexDirection:'column' as const, height:'100vh', maxHeight:'500px', background:'#fff', borderRadius:'12px', overflow:'hidden', boxShadow:'0 1px 3px rgba(0,0,0,0.1)', fontFamily:'system-ui'},
+  header: {display:'flex', justifyContent:'space-between', alignItems:'center', padding:'10px 15px', background:'#fff', color:'#000'},
+  title: {margin:0, fontSize:'16px', color:'#000'},
+  close: {background:'none', border:'none', color:'#888', fontSize:'20px', cursor:'pointer', padding:'0 5px'},
   msgList: {flex:1, padding:'15px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'8px'},
   msg: {maxWidth:'80%', padding:'8px 12px', borderRadius:'16px', wordBreak:'break-word' as const},
-  userMsg: {alignSelf:'flex-end', background:'#3B82F6', color:'white', borderBottomRightRadius:'4px'},
-  botMsg: {alignSelf:'flex-start', background:'#f1f5f9', color:'#0f172a', borderBottomLeftRadius:'4px'},
-  inputArea: {display:'flex', padding:'10px', borderTop:'1px solid #e2e8f0'},
-  input: {flex:1, padding:'8px 12px', border:'1px solid #e2e8f0', borderRadius:'4px', outline:'none'},
-  send: {marginLeft:'8px', padding:'8px 16px', background:'#3B82F6', color:'white', border:'none', borderRadius:'4px', cursor:'pointer'}
+  userMsg: {alignSelf:'flex-end', background:'#000', color:'#fff'},
+  botMsg: {alignSelf:'flex-start', background:'#f2f2f7', color:'#000'},
+  inputArea: {display:'flex', padding:'10px', borderTop:'1px solid #e0e0e0'},
+  input: {flex:1, padding:'8px 12px', border:'1px solid #ccc', borderRadius:'4px', outline:'none', color:'#000'},
+  send: {marginLeft:'8px', padding:'8px 16px', background:'#000', color:'#fff', border:'none', borderRadius:'4px', cursor:'pointer'}
 };
 
 export default function Chat() {
@@ -24,19 +24,26 @@ export default function Chat() {
 
   useEffect(() => endRef.current?.scrollIntoView({behavior:'smooth'}), [msgs]);
   useEffect(() => {
-    const handler = (e: MessageEvent) => e.data?.type === 'config' && null;
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'config') return null;
+      if (e.data?.type === 'search' && typeof e.data.text === 'string') {
+        setInput(e.data.text);
+        setTimeout(() => send(e.data.text), 0);
+      }
+    };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  const send = () => {
-    if (!input.trim()) return;
-    const newMsg = {id: msgs.length + 1, text: input, isUser: true};
+  const send = (msg?: string) => {
+    const message = typeof msg === 'string' ? msg : input;
+    if (!message.trim()) return;
+    const newMsg = {id: msgs.length + 1, text: message, isUser: true};
     setMsgs(m => [...m, newMsg]);
     setInput('');
     
     setTimeout(() => {
-      setMsgs(m => [...m, {id: msgs.length + 2, text: `You said: "${input}"`, isUser: false}]);
+      setMsgs(m => [...m, {id: m.length + 2, text: `You said: "${message}"`, isUser: false}]);
     }, 500);
   };
 
@@ -48,22 +55,10 @@ export default function Chat() {
       </div>
       
       <div style={s.msgList}>
-        {msgs.map(m => (
-          <div key={m.id} style={{...s.msg, ...(m.isUser ? s.userMsg : s.botMsg)}}>{m.text}</div>
+        {msgs.map((m, idx) => (
+          <div key={m.id + '-' + idx} style={{...s.msg, ...(m.isUser ? s.userMsg : s.botMsg)}}>{m.text}</div>
         ))}
         <div ref={endRef} />
-      </div>
-      
-      <div style={s.inputArea}>
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && send()}
-          placeholder="Type your message..."
-          style={s.input}
-        />
-        <button onClick={send} style={s.send}>Send</button>
       </div>
     </div>
   );
