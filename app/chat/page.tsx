@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
 type Msg = {id: number; text: string; isUser: boolean}
 
@@ -7,8 +7,8 @@ const s = {
   container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
   header: {display:'flex', justifyContent:'flex-start', padding:'8px', position:'absolute' as const, top:'0', left:'0', zIndex:10},
   expandBtn: {width:'28px', height:'28px', background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', transition:'all 0.2s'},
-  msgList: {flex:1, paddingTop:'16px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', justifyContent:'flex-end'},
-  msgListWithButton: {flex:1, paddingTop:'44px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', justifyContent:'flex-end'},
+  msgList: {flex:1, paddingTop:'16px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent'},
+  msgListWithButton: {flex:1, paddingTop:'44px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent'},
   msgWrapper: {display:'flex', alignItems:'flex-end', gap:'8px', maxWidth:'85%'},
   userMsg: {alignSelf:'flex-end', background:'#fff', color:'#000', marginLeft:'auto', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'85%', border:'1px solid rgba(0,0,0,0.08)'},
   botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4'},
@@ -56,7 +56,7 @@ export default function Chat() {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (endRef.current) {
       endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
@@ -114,6 +114,7 @@ export default function Chat() {
         </div>
       )}
       <div className="msg-list" style={isMobile ? s.msgList : s.msgListWithButton}>
+        <div style={{ marginTop: 'auto' }} />
         {msgs.map((m, index) => {
           // Find if this is the last bot message
           const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
