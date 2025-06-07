@@ -14,7 +14,8 @@ const s = {
   botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4'},
   avatar: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0},
   avatarPlaceholder: {width:'18px', height:'18px', flexShrink:0},
-  timestamp: {fontSize:'11px', color:'#999', marginTop:'4px', textAlign:'center' as const}
+  timestamp: {fontSize:'11px', color:'#999', marginTop:'4px', textAlign:'center' as const},
+
 };
 
 export default function Chat() {
@@ -33,6 +34,7 @@ export default function Chat() {
         scroll-behavior: smooth;
       }
       
+      /* Hide scrollbar when not needed */
       .msg-list::-webkit-scrollbar {
         width: 6px;
       }
@@ -45,6 +47,23 @@ export default function Chat() {
         background-color: rgba(0,0,0,0.2);
         border-radius: 3px;
       }
+      
+      /* Only show scrollbar on hover when content overflows */
+      .msg-list::-webkit-scrollbar-thumb {
+        background-color: transparent;
+        transition: background-color 0.3s ease;
+      }
+      
+      .msg-list:hover::-webkit-scrollbar-thumb {
+        background-color: rgba(0,0,0,0.2);
+      }
+      
+      /* Show scrollbar when actively scrolling */
+      .msg-list::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0,0,0,0.4);
+      }
+      
+
       
       .expand-btn:hover {
         background: #f5f5f5 !important;
@@ -59,6 +78,7 @@ export default function Chat() {
 
   useLayoutEffect(() => {
     if (endRef.current) {
+      // Always scroll to bottom on new messages
       endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }
   }, [msgs]);
@@ -160,20 +180,36 @@ export default function Chat() {
         const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
         setMsgs(m => [...m, userMsg]);
         
-        // Simulate bot response
-        setTimeout(() => {
-          const responses = [
-            `Ich habe "${e.data.text}" erhalten. Wie kann ich dir dabei helfen?`,
-            `Danke für deine Nachricht. Lass mich das für dich überprüfen.`,
-            `Interessante Frage zu "${e.data.text}". Hier ist was ich denke...`
-          ];
+        // Call the chat API
+        fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message: e.data.text,
+            search_limit: 50,
+            ranked_limit: 10
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
           const botMsg = {
-            id: Date.now() + 1, 
-            text: responses[Math.floor(Math.random() * responses.length)], 
+            id: Date.now() + 1,
+            text: data.success ? data.response : 'Entschuldigung, ich konnte keine Antwort finden.',
             isUser: false
           };
           setMsgs(m => [...m, botMsg]);
-        }, 800);
+        })
+        .catch(error => {
+          console.error('Chat API error:', error);
+          const errorMsg = {
+            id: Date.now() + 1,
+            text: 'Entschuldigung, es gab ein technisches Problem. Bitte versuchen Sie es später erneut.',
+            isUser: false
+          };
+          setMsgs(m => [...m, errorMsg]);
+        });
       }
     };
     window.addEventListener('message', handler);
