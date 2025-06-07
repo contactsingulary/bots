@@ -75,6 +75,7 @@ export default function Chat() {
   const [hasConsent, setHasConsent] = useState(false);
   const [nonEssentialCookies, setNonEssentialCookies] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [consentKey, setConsentKey] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const msgListRef = useRef<HTMLDivElement>(null);
@@ -85,9 +86,11 @@ export default function Chat() {
       if (event.data?.type === 'consentUpdate') {
         setHasConsent(event.data.hasConsent);
         setSessionId(event.data.sessionId);
-        setShowConsent(false);
+        // Don't set showConsent here - handled by accept/reject handlers
         console.log('Received consent update with session ID:', event.data.sessionId);
       } else if (event.data?.type === 'showConsent') {
+        // Force animation restart by changing key
+        setConsentKey(prev => prev + 1);
         setShowConsent(true);
       } else if (event.data?.type === 'resetChat') {
         // Clear all messages when consent is revoked
@@ -415,6 +418,10 @@ export default function Chat() {
   }, [isMobile]);
   
   const handleConsentAccept = () => {
+    // Reset the modal state and key for next time
+    setShowConsent(false);
+    setConsentKey(prev => prev + 1);
+    
     // Notify parent window about consent acceptance
     window.parent.postMessage({
       type: 'consentAccepted', 
@@ -423,6 +430,10 @@ export default function Chat() {
   };
 
   const handleConsentReject = () => {
+    // Reset the modal state and key for next time
+    setShowConsent(false);
+    setConsentKey(prev => prev + 1);
+    
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
   };
@@ -526,6 +537,8 @@ export default function Chat() {
   };
 
   const handleSettings = () => {
+    // Force animation restart by changing key
+    setConsentKey(prev => prev + 1);
     setShowConsent(true);
   };
 
@@ -545,7 +558,7 @@ export default function Chat() {
     <>
       {showConsent && (
         <div style={s.consentOverlay}>
-          <div style={s.consentModal}>
+          <div key={consentKey} style={s.consentModal}>
             <div style={s.consentTitle}>Datenschutzeinstellungen</div>
             <div style={s.consentSubtitle}>
               Bitte wählen Sie aus, welche Cookies Sie akzeptieren möchten.
