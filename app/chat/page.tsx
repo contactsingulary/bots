@@ -19,21 +19,25 @@ const s = {
   container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
   header: {display:'flex', justifyContent:'flex-start', padding:'8px', position:'absolute' as const, top:'0', left:'0', zIndex:10},
   expandBtn: {width:'28px', height:'28px', background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', transition:'all 0.2s'},
-  msgList: {flex:1, paddingTop:'16px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
-  msgListWithButton: {flex:1, paddingTop:'44px', paddingBottom:'16px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
+  msgList: {flex:1, paddingTop:'16px', paddingBottom:'4px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
+  msgListWithButton: {flex:1, paddingTop:'44px', paddingBottom:'4px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
   msgWrapper: {display:'flex', alignItems:'flex-end', gap:'8px', maxWidth:'90%'},
-  userMsg: {alignSelf:'flex-end', background:'#fff', color:'#000', marginLeft:'auto', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'85%', border:'1px solid rgba(0,0,0,0.08)'},
-  botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'100%'},
-  avatar: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0},
+  msgWrapperProducts: {display:'flex', alignItems:'flex-end', gap:'8px', width:'100%'},
+  msgWrapperFullWidth: {display:'flex', flexDirection:'column' as const, gap:'8px', width:'100%'},
+  userMsg: {alignSelf:'flex-end', background:'#fff', color:'#000', marginLeft:'auto', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'85%', border:'1px solid rgba(0,0,0,0.08)', animation:'fadeIn 0.5s ease-out'},
+  botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'100%', animation:'fadeIn 0.6s ease-out'},
+  avatarWrapper: {display:'flex', justifyContent:'center', marginTop:'8px'},
+  avatar: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0, transition:'all 0.3s ease'},
+  avatarJump: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0, animation:'avatarJump 1.2s ease-in-out'},
   avatarPlaceholder: {width:'18px', height:'18px', flexShrink:0},
   timestamp: {fontSize:'11px', color:'#999', marginTop:'4px', textAlign:'center' as const},
-  productCarousel: {position:'relative' as const, marginTop:'8px', paddingLeft:'0px', paddingRight:'0px'},
-  productScroll: {display:'flex', gap:'8px', overflowX:'auto' as const, scrollBehavior:'smooth' as const, scrollbarWidth:'none' as const, msOverflowStyle:'none' as const, paddingLeft:'0px', paddingRight:'8px', scrollSnapType:'x mandatory' as const},
+  productCarousel: {position:'relative' as const, marginTop:'8px', paddingLeft:'0px', paddingRight:'0px', overflow:'hidden'},
+  productScroll: {display:'flex', gap:'8px', overflowX:'auto' as const, scrollBehavior:'smooth' as const, scrollbarWidth:'none' as const, msOverflowStyle:'none' as const, paddingLeft:'0px', paddingRight:'0px', scrollSnapType:'x mandatory' as const, borderRadius:'12px'},
   productCard: {minWidth:'100px', maxWidth:'100px', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'6px', padding:'6px', background:'#fff', fontSize:'11px', flexShrink:0, scrollSnapAlign:'center' as const, scrollSnapStop:'always' as const, boxShadow:'0 1px 3px rgba(0,0,0,0.1)'},
   productImage: {width:'100%', height:'60px', objectFit:'cover' as const, borderRadius:'3px', marginBottom:'3px'},
   productTitle: {fontWeight:'500', lineHeight:'1.2', marginBottom:'2px', fontSize:'10px'},
   productInfo: {color:'#666', fontSize:'9px'},
-  carouselBtn: {position:'absolute' as const, top:'50%', transform:'translateY(-50%)', width:'24px', height:'24px', borderRadius:'50%', background:'rgba(255,255,255,0.9)', border:'1px solid rgba(0,0,0,0.1)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', zIndex:1},
+  carouselBtn: {position:'absolute' as const, top:'50%', transform:'translateY(-50%)', width:'20px', height:'20px', borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1px solid rgba(0,0,0,0.05)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', zIndex:1, fontSize:'12px', color:'rgba(0,0,0,0.6)', fontWeight:'400'},
   carouselBtnLeft: {left:'0'},
   carouselBtnRight: {right:'0'}
 
@@ -43,6 +47,7 @@ export default function Chat() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [carouselStates, setCarouselStates] = useState<{[key: number]: {canScrollLeft: boolean, canScrollRight: boolean}}>({});
+  const [jumpingAvatars, setJumpingAvatars] = useState<{[key: number]: boolean}>({});
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const msgListRef = useRef<HTMLDivElement>(null);
@@ -54,6 +59,7 @@ export default function Chat() {
         scrollbar-width: thin;
         scrollbar-color: rgba(0,0,0,0.2) transparent;
         scroll-behavior: smooth;
+        scroll-padding-bottom: 20px;
       }
       
       /* Hide scrollbar when not needed */
@@ -90,9 +96,38 @@ export default function Chat() {
         display: none;
       }
       
+      /* Add fade effects to carousel edges */
+      .product-carousel::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 8px;
+        height: 100%;
+        background: linear-gradient(to right, rgba(0,0,0,0.15), transparent);
+        z-index: 2;
+        pointer-events: none;
+        border-radius: 12px 0 0 12px;
+      }
+      
+      .product-carousel::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 8px;
+        height: 100%;
+        background: linear-gradient(to left, rgba(0,0,0,0.15), transparent);
+        z-index: 2;
+        pointer-events: none;
+        border-radius: 0 12px 12px 0;
+      }
+      
       .carousel-btn:hover {
         background: rgba(255,255,255,1) !important;
-        transform: translateY(-50%) scale(1.1);
+        color: rgba(0,0,0,0.8) !important;
+        transform: translateY(-50%) scale(1.05);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
       }
       
 
@@ -103,6 +138,47 @@ export default function Chat() {
         background: #f5f5f5 !important;
         transform: scale(1.05);
       }
+      
+      /* Message fade-in animation */
+      @keyframes fadeIn {
+        0% { 
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        100% { 
+          opacity: 1;
+          transform: translateY(0px);
+        }
+      }
+      
+      /* Avatar jumping animation */
+      @keyframes avatarJump {
+        0% { 
+          transform: translateY(0px) scale(1);
+          opacity: 0.7;
+        }
+        15% { 
+          transform: translateY(-3px) scale(1.03);
+          opacity: 0.9;
+        }
+        35% { 
+          transform: translateY(-6px) scale(1.08);
+          opacity: 1;
+        }
+        55% { 
+          transform: translateY(-1px) scale(1.02);
+        }
+        70% { 
+          transform: translateY(-0.5px) scale(1.01);
+        }
+        85% { 
+          transform: translateY(0px) scale(1);
+        }
+        100% { 
+          transform: translateY(0px) scale(1);
+          opacity: 1;
+        }
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -111,15 +187,28 @@ export default function Chat() {
   }, []);
 
   useLayoutEffect(() => {
-    if (endRef.current) {
-      // Always scroll to bottom on new messages
-      endRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    }
+    // Gentle scroll to bottom 
+    const scrollToBottom = () => {
+      if (endRef.current) {
+        endRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'end', 
+          inline: 'nearest' 
+        });
+      }
+    };
+    
+    // Delayed scroll after fade-in animation
+    setTimeout(scrollToBottom, 700);
     
     // Initialize carousel states for new messages with products
     msgs.forEach(msg => {
       if (msg.products && msg.products.length > 0 && !carouselStates[msg.id]) {
-        setTimeout(() => updateCarouselState(msg.id), 100);
+        setTimeout(() => {
+          updateCarouselState(msg.id);
+          // Extra scroll after carousel initialization
+          setTimeout(scrollToBottom, 400);
+        }, 100);
       }
     });
   }, [msgs]);
@@ -235,6 +324,13 @@ export default function Chat() {
         })
         .then(response => response.json())
         .then(data => {
+          // Prepare products immediately to avoid rendering delay
+          const highlightedProducts = data.success && data.search_results?.results 
+            ? data.search_results.results
+                .filter((product: Product) => data.highlight_ids?.includes(product.id))
+                .slice(0, 6)
+            : [];
+
           // Add AI response message
           const botMsg = {
             id: Date.now() + 1,
@@ -242,14 +338,16 @@ export default function Chat() {
             isUser: false
           };
           setMsgs(m => [...m, botMsg]);
+          
+          // Trigger avatar jump for text message
+          setTimeout(() => {
+            setJumpingAvatars(prev => ({...prev, [botMsg.id]: true}));
+            setTimeout(() => {
+              setJumpingAvatars(prev => ({...prev, [botMsg.id]: false}));
+            }, 1200);
+          }, 200);
 
-          // Add products as separate message if they exist
-          const highlightedProducts = data.success && data.search_results?.results 
-            ? data.search_results.results
-                .filter((product: Product) => data.highlight_ids?.includes(product.id))
-                .slice(0, 6)
-            : [];
-
+          // Add products as separate message (products already processed)
           if (highlightedProducts.length > 0) {
             setTimeout(() => {
               const productsMsg = {
@@ -259,7 +357,15 @@ export default function Chat() {
                 products: highlightedProducts
               };
               setMsgs(m => [...m, productsMsg]);
-            }, 300);
+              
+              // Trigger avatar jump for product message (delayed)
+              setTimeout(() => {
+                setJumpingAvatars(prev => ({...prev, [productsMsg.id]: true}));
+                setTimeout(() => {
+                  setJumpingAvatars(prev => ({...prev, [productsMsg.id]: false}));
+                }, 1200);
+              }, 300);
+            }, 1800);
           }
         })
         .catch(error => {
@@ -312,33 +418,45 @@ export default function Chat() {
       <div ref={msgListRef} className="msg-list" style={isMobile ? s.msgList : s.msgListWithButton}>
         <div style={{ marginTop: 'auto' }} />
         {msgs.map((m, index) => {
-          // Find if this is the last bot message (including product messages)
+          // Avatar only shows on the very last bot message (moves from text to products)
           const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
           
           return m.isUser ? (
             <div key={m.id} style={s.userMsg}>{m.text}</div>
           ) : (
-            <div key={m.id} style={s.msgWrapper}>
-              {/* Show avatar for last bot message (text or product carousel) */}
-              {isLastBotMessage ? (
-                <img 
-                  src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
-                  alt="Assistant"
-                  style={s.avatar}
-                />
-              ) : (
-                <div style={s.avatarPlaceholder} />
-              )}
-              
-              {/* Text message */}
+            <div key={m.id} style={m.products && m.products.length > 0 && !m.text ? s.msgWrapperProducts : s.msgWrapper}>
+              {/* Text message with side avatar */}
               {m.text && (
-                <div style={s.botMsg}>{m.text}</div>
+                <>
+                                     {/* Show avatar for last bot message */}
+                   {isLastBotMessage ? (
+                     <img 
+                       src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
+                       alt="Assistant"
+                       style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
+                     />
+                   ) : (
+                     <div style={s.avatarPlaceholder} />
+                   )}
+                  <div style={s.botMsg}>{m.text}</div>
+                </>
               )}
               
-              {/* Products-only message */}
+              {/* Products-only message full width */}
               {m.products && m.products.length > 0 && !m.text && (
-                <div style={{...s.botMsg, padding: '4px', overflow: 'hidden', background: 'transparent', border: 'none'}}>
-                  <div style={s.productCarousel}>
+                <>
+                  {/* Show avatar for last bot message on the left */}
+                  {isLastBotMessage ? (
+                    <img 
+                      src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
+                      alt="Assistant"
+                      style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
+                    />
+                  ) : (
+                    <div style={s.avatarPlaceholder} />
+                  )}
+                  <div style={{width: '100%', overflow: 'hidden', background: 'transparent'}}>
+                    <div className="product-carousel" style={s.productCarousel}>
                     {/* Left arrow */}
                     {carouselStates[m.id]?.canScrollLeft && (
                       <button 
@@ -352,7 +470,7 @@ export default function Chat() {
                           }
                         }}
                       >
-                        ←
+                        ‹
                       </button>
                     )}
                     
@@ -395,11 +513,12 @@ export default function Chat() {
                           }
                         }}
                       >
-                        →
+                        ›
                       </button>
                     )}
                   </div>
-                </div>
+                                  </div>
+                </>
               )}
             </div>
           );
