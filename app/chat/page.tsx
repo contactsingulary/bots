@@ -198,8 +198,8 @@ export default function Chat() {
       }
     };
     
-    // Delayed scroll after fade-in animation
-    setTimeout(scrollToBottom, 700);
+    // Immediate scroll in parallel with message appearance
+    setTimeout(scrollToBottom, 50);
     
     // Initialize carousel states for new messages with products
     msgs.forEach(msg => {
@@ -339,13 +339,13 @@ export default function Chat() {
           };
           setMsgs(m => [...m, botMsg]);
           
-          // Trigger avatar jump for text message
+          // Trigger avatar jump after message fade-in completes
           setTimeout(() => {
             setJumpingAvatars(prev => ({...prev, [botMsg.id]: true}));
             setTimeout(() => {
               setJumpingAvatars(prev => ({...prev, [botMsg.id]: false}));
             }, 1200);
-          }, 200);
+          }, 700);
 
           // Add products as separate message (products already processed)
           if (highlightedProducts.length > 0) {
