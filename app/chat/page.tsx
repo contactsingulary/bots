@@ -89,7 +89,7 @@ export default function Chat() {
         // Don't set showConsent here - handled by accept/reject handlers
         console.log('Received consent update with session ID:', event.data.sessionId);
       } else if (event.data?.type === 'showConsent') {
-        // Force animation restart by changing key
+        // Force animation restart by changing key only when showing
         setConsentKey(prev => prev + 1);
         setShowConsent(true);
       } else if (event.data?.type === 'resetChat') {
@@ -97,6 +97,9 @@ export default function Chat() {
         setMsgs([]);
         setCarouselStates({});
         setJumpingAvatars({});
+        // Reset consent modal state completely
+        setShowConsent(false);
+        // Don't change key here - wait for next show
         console.log('Chat reset due to consent revocation');
       }
     };
@@ -427,12 +430,23 @@ export default function Chat() {
       type: 'consentAccepted', 
       nonEssential: nonEssentialCookies
     }, '*');
+    
+    // Request any pending search text from parent
+    setTimeout(() => {
+      window.parent.postMessage({
+        type: 'requestPendingSearch'
+      }, '*');
+    }, 100);
   };
 
   const handleConsentReject = () => {
-    // Reset the modal state and key for next time
+    // Reset the modal state - don't change key yet
     setShowConsent(false);
-    setConsentKey(prev => prev + 1);
+    
+    // Clear all messages and state - complete reset
+    setMsgs([]);
+    setCarouselStates({});
+    setJumpingAvatars({});
     
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
