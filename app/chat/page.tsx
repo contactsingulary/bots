@@ -50,33 +50,6 @@ export default function Chat() {
         background: #f5f5f5 !important;
         transform: scale(1.05);
       }
-      
-      /* Prevent scrolling on mobile */
-      @media (max-width: 768px) {
-        body, html {
-          overflow: hidden !important;
-          position: fixed !important;
-          width: 100% !important;
-          height: 100% !important;
-          touch-action: none !important;
-          -webkit-overflow-scrolling: none !important;
-        }
-        
-        .mobile-no-scroll {
-          overflow: hidden !important;
-          touch-action: none !important;
-          -webkit-overflow-scrolling: none !important;
-          overscroll-behavior: none !important;
-        }
-        
-        /* Allow scrolling in message list on mobile */
-        .msg-list {
-          overflow-y: auto !important;
-          touch-action: pan-y !important;
-          -webkit-overflow-scrolling: touch !important;
-          overscroll-behavior-y: contain !important;
-        }
-      }
     `;
     document.head.appendChild(style);
     return () => {
