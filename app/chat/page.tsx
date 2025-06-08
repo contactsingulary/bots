@@ -13,7 +13,7 @@ type Product = {
   [key: string]: any;
 }
 
-type Msg = {id: number; text: string; isUser: boolean; products?: Product[]}
+type Msg = {id: number; text: string; isUser: boolean; products?: Product[]; isLoading?: boolean}
 
 const s = {
   container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
@@ -38,7 +38,7 @@ const s = {
   productImage: {width:'100%', height:'60px', objectFit:'cover' as const, borderRadius:'3px', marginBottom:'3px'},
   productTitle: {fontWeight:'500', lineHeight:'1.2', marginBottom:'2px', fontSize:'10px'},
   productInfo: {color:'#666', fontSize:'9px'},
-  carouselBtn: {position:'absolute' as const, top:'50%', transform:'translateY(-50%)', width:'20px', height:'20px', borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1px solid rgba(0,0,0,0.05)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', zIndex:1, fontSize:'12px', color:'rgba(0,0,0,0.6)', fontWeight:'400'},
+  carouselBtn: {position:'absolute' as const, top:'50%', transform:'translateY(-50%)', width:'22px', height:'22px', borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1px solid rgba(0,0,0,0.05)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', zIndex:1, fontSize:'12px', color:'rgba(0,0,0,0.6)', fontWeight:'400', boxSizing:'border-box' as const, flexShrink:0, lineHeight:'1', textAlign:'center' as const},
   carouselBtnLeft: {left:'0'},
   carouselBtnRight: {right:'0'},
   consentOverlay: {position:'fixed' as const, bottom:'16px', left:'16px', right:'16px', zIndex:1000},
@@ -76,9 +76,64 @@ export default function Chat() {
   const [nonEssentialCookies, setNonEssentialCookies] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [consentKey, setConsentKey] = useState(0);
+  const [loadingMessages, setLoadingMessages] = useState<{[key: number]: {currentPhrase: number, interval: NodeJS.Timeout | null}}>({});
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const msgListRef = useRef<HTMLDivElement>(null);
+
+  // German loading phrases that cycle
+  const loadingPhrases = ['ich schaue für Sie nach...', 'Lassen Sie mich überlegen...', 'Ich organisiere...', 'Ich suche für Sie...', 'Einen Moment bitte...'];
+
+  // Loading animation management
+  const startLoadingAnimation = (messageId: number) => {
+    let currentPhrase = 0;
+    
+    const interval = setInterval(() => {
+      currentPhrase = (currentPhrase + 1) % loadingPhrases.length;
+      
+      setMsgs(prevMsgs => 
+        prevMsgs.map(msg => 
+          msg.id === messageId && msg.isLoading 
+            ? { ...msg, text: loadingPhrases[currentPhrase] }
+            : msg
+        )
+      );
+      
+      setLoadingMessages(prev => ({
+        ...prev,
+        [messageId]: { ...prev[messageId], currentPhrase }
+      }));
+    }, 800); // Change phrase every 800ms
+    
+    setLoadingMessages(prev => ({
+      ...prev,
+      [messageId]: { currentPhrase: 0, interval }
+    }));
+  };
+
+  const stopLoadingAnimation = (messageId: number) => {
+    const loadingState = loadingMessages[messageId];
+    if (loadingState?.interval) {
+      clearInterval(loadingState.interval);
+    }
+    
+    setLoadingMessages(prev => {
+      const newState = { ...prev };
+      delete newState[messageId];
+      return newState;
+    });
+  };
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(loadingMessages).forEach(state => {
+        if (state.interval) {
+          clearInterval(state.interval);
+        }
+      });
+    };
+  }, [loadingMessages]);
 
   useEffect(() => {
     // Listen for consent status from parent window
@@ -97,6 +152,13 @@ export default function Chat() {
         setMsgs([]);
         setCarouselStates({});
         setJumpingAvatars({});
+        // Stop all loading animations
+        Object.values(loadingMessages).forEach(state => {
+          if (state.interval) {
+            clearInterval(state.interval);
+          }
+        });
+        setLoadingMessages({});
         // Reset consent modal state completely
         setShowConsent(false);
         // Don't change key here - wait for next show
@@ -184,6 +246,49 @@ export default function Chat() {
         color: rgba(0,0,0,0.8) !important;
         transform: translateY(-50%) scale(1.05);
         box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+      }
+      
+      /* Ensure perfectly circular carousel buttons on all devices */
+      .carousel-btn {
+        width: 22px !important;
+        height: 22px !important;
+        border-radius: 50% !important;
+        min-width: 22px !important;
+        min-height: 22px !important;
+        max-width: 22px !important;
+        max-height: 22px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-sizing: border-box !important;
+        flex-shrink: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        line-height: 1 !important;
+        text-align: center !important;
+      }
+      
+      /* Mobile-specific circular button styling */
+      @media (max-width: 768px) {
+        .carousel-btn {
+          width: 24px !important;
+          height: 24px !important;
+          min-width: 24px !important;
+          min-height: 24px !important;
+          max-width: 24px !important;
+          max-height: 24px !important;
+          border-radius: 50% !important;
+          font-size: 12px !important;
+          font-weight: bold !important;
+          background: rgba(255,255,255,0.98) !important;
+          box-shadow: 0 3px 10px rgba(0,0,0,0.15) !important;
+          border: 1px solid rgba(0,0,0,0.08) !important;
+        }
+        
+        .carousel-btn:active {
+          transform: translateY(-50%) scale(0.95) !important;
+          background: rgba(255,255,255,1) !important;
+        }
       }
       
 
@@ -299,6 +404,28 @@ export default function Chat() {
           opacity: 1;
           transform: translateY(0px) scale(1);
         }
+      }
+      
+      /* Loading text animation */
+      @keyframes loadingPulse {
+        0% { 
+          opacity: 0.6;
+          transform: scale(1);
+        }
+        50% { 
+          opacity: 1;
+          transform: scale(1.02);
+        }
+        100% { 
+          opacity: 0.6;
+          transform: scale(1);
+        }
+      }
+      
+      .loading-text {
+        animation: loadingPulse 1.2s ease-in-out infinite;
+        font-style: italic;
+        color: #666 !important;
       }
     `;
     document.head.appendChild(style);
@@ -447,6 +574,13 @@ export default function Chat() {
     setMsgs([]);
     setCarouselStates({});
     setJumpingAvatars({});
+    // Stop all loading animations
+    Object.values(loadingMessages).forEach(state => {
+      if (state.interval) {
+        clearInterval(state.interval);
+      }
+    });
+    setLoadingMessages({});
     
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
@@ -472,6 +606,12 @@ export default function Chat() {
         const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
         setMsgs(m => [...m, userMsg]);
         
+        // Add loading message and start animation
+        const loadingMsgId = Date.now() + 1;
+        const loadingMsg = {id: loadingMsgId, text: loadingPhrases[0], isUser: false, isLoading: true};
+        setMsgs(m => [...m, loadingMsg]);
+        startLoadingAnimation(loadingMsgId);
+        
         // Call the chat API with session ID
         fetch('/api/chat', {
           method: 'POST',
@@ -487,6 +627,9 @@ export default function Chat() {
         })
         .then(response => response.json())
         .then(data => {
+          // Stop loading animation
+          stopLoadingAnimation(loadingMsgId);
+          
           // Prepare products immediately to avoid rendering delay
           const highlightedProducts = data.success && data.search_results?.results 
             ? data.search_results.results
@@ -494,21 +637,27 @@ export default function Chat() {
                 .slice(0, 6)
             : [];
 
-          // Add AI response message
+          // Replace loading message with AI response
           const botMsg = {
-            id: Date.now() + 1,
+            id: loadingMsgId, // Same ID to replace loading message
             text: data.success ? data.response : 'Entschuldigung, ich konnte keine Antwort finden.',
-            isUser: false
+            isUser: false,
+            isLoading: false
           };
-          setMsgs(m => [...m, botMsg]);
           
-          // Trigger avatar jump after message fade-in completes
+          setMsgs(prevMsgs => 
+            prevMsgs.map(msg => 
+              msg.id === loadingMsgId ? botMsg : msg
+            )
+          );
+          
+          // Trigger avatar jump after message replacement
           setTimeout(() => {
             setJumpingAvatars(prev => ({...prev, [botMsg.id]: true}));
             setTimeout(() => {
               setJumpingAvatars(prev => ({...prev, [botMsg.id]: false}));
             }, 1200);
-          }, 700);
+          }, 200);
 
           // Add products as separate message (products already processed)
           if (highlightedProducts.length > 0) {
@@ -528,17 +677,27 @@ export default function Chat() {
                   setJumpingAvatars(prev => ({...prev, [productsMsg.id]: false}));
                 }, 1200);
               }, 300);
-            }, 1800);
+            }, 1500);
           }
         })
         .catch(error => {
           console.error('Chat API error:', error);
+          // Stop loading animation on error
+          stopLoadingAnimation(loadingMsgId);
+          
+          // Replace loading message with error message
           const errorMsg = {
-            id: Date.now() + 1,
+            id: loadingMsgId, // Same ID to replace loading message
             text: 'Entschuldigung, es gab ein technisches Problem. Bitte versuchen Sie es später erneut.',
-            isUser: false
+            isUser: false,
+            isLoading: false
           };
-          setMsgs(m => [...m, errorMsg]);
+          
+          setMsgs(prevMsgs => 
+            prevMsgs.map(msg => 
+              msg.id === loadingMsgId ? errorMsg : msg
+            )
+          );
         });
       }
     };
@@ -691,7 +850,7 @@ export default function Chat() {
                    ) : (
                      <div style={s.avatarPlaceholder} />
                    )}
-                  <div style={s.botMsg}>{m.text}</div>
+                  <div style={s.botMsg} className={m.isLoading ? 'loading-text' : ''}>{m.text}</div>
                 </>
               )}
               
