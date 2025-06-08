@@ -319,22 +319,31 @@ export default function Chat() {
         setIsLoadingHistory(false);
         messageIdCounter.current = 1;
       } else if (event.data?.type === 'getScrollPosition') {
-        // Return current scroll position to parent (only on desktop)
+        // Don't capture scroll position - we'll scroll to bottom instead
+        window.parent.postMessage({
+          type: 'scrollPosition',
+          position: 'bottom'
+        }, '*');
+      } else if (event.data?.type === 'setScrollPosition') {
+        // Always scroll to bottom after expansion/collapse (only on desktop)
         if (!isMobile && msgListRef.current) {
-          const scrollPosition = msgListRef.current.scrollTop;
-          window.parent.postMessage({
-            type: 'scrollPosition',
-            position: scrollPosition
-          }, '*');
-        }
-      } else if (event.data?.type === 'setScrollPosition' && typeof event.data.position === 'number') {
-        // Restore scroll position after expansion/collapse (only on desktop)
-        if (!isMobile && msgListRef.current) {
-          // Use smooth scroll to the saved position
-          msgListRef.current.scrollTo({
-            top: event.data.position,
-            behavior: 'smooth'
-          });
+          // Force scroll to bottom immediately, then smooth scroll
+          setTimeout(() => {
+            if (msgListRef.current) {
+              // First scroll immediately to bottom
+              msgListRef.current.scrollTop = msgListRef.current.scrollHeight;
+              
+              // Then do a smooth scroll to ensure it's at the very bottom
+              setTimeout(() => {
+                if (msgListRef.current) {
+                  msgListRef.current.scrollTo({
+                    top: msgListRef.current.scrollHeight,
+                    behavior: 'smooth'
+                  });
+                }
+              }, 50);
+            }
+          }, 200); // Longer delay to ensure layout is completely settled
         }
       }
     };
