@@ -1,6 +1,10 @@
 'use client';
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 
+// ===============================================
+// === TYPE DEFINITIONS ===
+// ===============================================
+// Define what a product looks like from the API
 type Product = {
   id: string;
   data: {
@@ -13,38 +17,62 @@ type Product = {
   [key: string]: any;
 }
 
+// Define what a chat message looks like
 type Msg = {id: number; text: string; isUser: boolean; products?: Product[]; isLoading?: boolean}
 
+// ===============================================
+// === STYLING OBJECT ===
+// ===============================================
+// All component styles in one place for easy maintenance
 const s = {
+  // Main container styles
   container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
+  
+  // Header with buttons (expand/settings)
   header: {display:'flex', flexDirection:'column' as const, gap:'8px', padding:'8px', position:'absolute' as const, top:'0', left:'0', zIndex:10},
   expandBtn: {width:'28px', height:'28px', background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', transition:'all 0.2s'},
   settingsBtn: {width:'28px', height:'28px', background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 4px rgba(0,0,0,0.1)', transition:'all 0.2s'},
+  
+  // Message list container
   msgList: {flex:1, paddingTop:'52px', paddingBottom:'4px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
   msgListWithButton: {flex:1, paddingTop:'80px', paddingBottom:'4px', paddingLeft:'16px', paddingRight:'16px', overflowY:'auto' as const, overflowX:'hidden' as const, display:'flex', flexDirection:'column' as const, gap:'12px', background:'transparent', WebkitOverflowScrolling:'touch' as const, overscrollBehaviorY:'contain' as const},
+  
+  // Message wrappers for different layouts
   msgWrapper: {display:'flex', alignItems:'flex-end', gap:'8px', maxWidth:'90%'},
   msgWrapperProducts: {display:'flex', alignItems:'flex-end', gap:'8px', width:'100%'},
   msgWrapperFullWidth: {display:'flex', flexDirection:'column' as const, gap:'8px', width:'100%'},
+  
+  // Individual message styles
   userMsg: {alignSelf:'flex-end', background:'#fff', color:'#000', marginLeft:'auto', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'85%', border:'1px solid rgba(0,0,0,0.08)', animation:'fadeIn 0.5s ease-out'},
   botMsg: {background:'#fff', color:'#000', border:'1px solid rgba(0,0,0,0.08)', padding:'10px 14px', borderRadius:'18px', wordBreak:'break-word' as const, fontSize:'14px', lineHeight:'1.4', maxWidth:'100%', animation:'fadeIn 0.6s ease-out'},
+  
+  // Avatar styles and animations
   avatarWrapper: {display:'flex', justifyContent:'center', marginTop:'8px'},
   avatar: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0, transition:'all 0.3s ease'},
   avatarJump: {width:'18px', height:'18px', borderRadius:'50%', flexShrink:0, animation:'avatarJump 1.2s ease-in-out'},
   avatarPlaceholder: {width:'18px', height:'18px', flexShrink:0},
   timestamp: {fontSize:'11px', color:'#999', marginTop:'4px', textAlign:'center' as const},
+  
+  // Product carousel styles
   productCarousel: {position:'relative' as const, marginTop:'8px', paddingLeft:'0px', paddingRight:'0px', overflow:'hidden'},
   productScroll: {display:'flex', gap:'8px', overflowX:'auto' as const, scrollBehavior:'smooth' as const, scrollbarWidth:'none' as const, msOverflowStyle:'none' as const, paddingLeft:'0px', paddingRight:'0px', scrollSnapType:'x mandatory' as const, borderRadius:'12px'},
   productCard: {minWidth:'100px', maxWidth:'100px', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'6px', padding:'6px', background:'#fff', fontSize:'11px', flexShrink:0, scrollSnapAlign:'center' as const, scrollSnapStop:'always' as const, boxShadow:'0 1px 3px rgba(0,0,0,0.1)'},
   productImage: {width:'100%', height:'60px', objectFit:'cover' as const, borderRadius:'3px', marginBottom:'3px'},
   productTitle: {fontWeight:'500', lineHeight:'1.2', marginBottom:'2px', fontSize:'10px'},
   productInfo: {color:'#666', fontSize:'9px'},
+  
+  // Carousel navigation buttons
   carouselBtn: {position:'absolute' as const, top:'50%', transform:'translateY(-50%)', width:'22px', height:'22px', borderRadius:'50%', background:'rgba(255,255,255,0.95)', border:'1px solid rgba(0,0,0,0.05)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', boxShadow:'0 2px 8px rgba(0,0,0,0.08)', zIndex:1, fontSize:'12px', color:'rgba(0,0,0,0.6)', fontWeight:'400', boxSizing:'border-box' as const, flexShrink:0, lineHeight:'1', textAlign:'center' as const},
   carouselBtnLeft: {left:'0'},
   carouselBtnRight: {right:'0'},
+  
+  // Consent modal styles
   consentOverlay: {position:'fixed' as const, bottom:'16px', left:'16px', right:'16px', zIndex:1000},
   consentModal: {background:'#fff', borderRadius:'16px', padding:'20px', maxWidth:'320px', margin:'0 auto', boxShadow:'0 10px 40px rgba(0,0,0,0.25)', border:'1px solid rgba(0,0,0,0.08)', position:'relative' as const, animation:'consentFadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1)'},
   consentTitle: {fontSize:'20px', fontWeight:'700', marginBottom:'8px', color:'#000', textAlign:'left' as const},
   consentSubtitle: {fontSize:'13px', color:'#666', marginBottom:'20px', textAlign:'left' as const, lineHeight:'1.3'},
+  
+  // Cookie toggle components
   cookieRow: {display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'12px', padding:'8px 0'},
   cookieLabel: {display:'flex', flexDirection:'column' as const, flex:1},
   cookieTitle: {fontSize:'15px', fontWeight:'500', color:'#000', marginBottom:'2px'},
@@ -56,6 +84,8 @@ const s = {
   toggleKnob: {width:'22px', height:'22px', borderRadius:'50%', background:'#fff', position:'absolute' as const, top:'2px', transition:'all 0.3s ease', boxShadow:'0 2px 4px rgba(0,0,0,0.2)'},
   toggleKnobLeft: {left:'2px'},
   toggleKnobRight: {left:'20px'},
+  
+  // Consent modal footer and buttons
   consentLink: {color:'#000', textDecoration:'underline'},
   consentDetails: {fontSize:'10px', color:'#888', lineHeight:'1.4', marginTop:'16px', marginBottom:'12px'},
   consentFooter: {fontSize:'11px', color:'#999', textAlign:'left' as const, marginTop:'12px', marginBottom:'16px'},
@@ -63,29 +93,52 @@ const s = {
   consentButton: {flex:1, padding:'12px', borderRadius:'8px', border:'none', cursor:'pointer', fontSize:'15px', fontWeight:'500', transition:'all 0.2s'},
   consentReject: {background:'#f5f5f7', color:'#000'},
   consentAccept: {background:'#000', color:'#fff'}
-
 };
 
+// ===============================================
+// === MAIN CHAT COMPONENT ===
+// ===============================================
 export default function Chat() {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
+  
+  // ===============================================
+  // === COMPONENT STATE ===
+  // ===============================================
+  // Core chat functionality
+  const [msgs, setMsgs] = useState<Msg[]>([]);                    // All chat messages
+  const [isMobile, setIsMobile] = useState(false);                // Device detection
+  
+  // Product carousel management
   const [carouselStates, setCarouselStates] = useState<{[key: number]: {canScrollLeft: boolean, canScrollRight: boolean}}>({});
   const [jumpingAvatars, setJumpingAvatars] = useState<{[key: number]: boolean}>({});
-  const [showConsent, setShowConsent] = useState(false);
-  const [hasConsent, setHasConsent] = useState(false);
-  const [nonEssentialCookies, setNonEssentialCookies] = useState(true);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [consentKey, setConsentKey] = useState(0);
+  
+  // Consent and privacy management
+  const [showConsent, setShowConsent] = useState(false);          // Show/hide consent modal
+  const [hasConsent, setHasConsent] = useState(false);           // User has given consent
+  const [nonEssentialCookies, setNonEssentialCookies] = useState(true); // Cookie preferences
+  const [consentKey, setConsentKey] = useState(0);               // Force consent animation restart
+  
+  // User and session tracking
+  const [sessionId, setSessionId] = useState<string | null>(null); // Current session ID
+  const [userId, setUserId] = useState<string | null>(null);     // Persistent user ID
+  
+  // Loading animation system
   const [loadingMessages, setLoadingMessages] = useState<{[key: number]: {currentPhrase: number, interval: NodeJS.Timeout | null}}>({});
-  const endRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const msgListRef = useRef<HTMLDivElement>(null);
+  
+  // ===============================================
+  // === COMPONENT REFS ===
+  // ===============================================
+  // DOM element references for scrolling and mobile handling
+  const endRef = useRef<HTMLDivElement>(null);           // Auto-scroll target
+  const containerRef = useRef<HTMLDivElement>(null);     // Main container
+  const msgListRef = useRef<HTMLDivElement>(null);       // Message list container
 
-  // German loading phrases that cycle
+  // ===============================================
+  // === LOADING ANIMATION SYSTEM ===
+  // ===============================================
+  // German phrases that cycle during API loading
   const loadingPhrases = ['ich schaue für Sie nach...', 'Lassen Sie mich überlegen...', 'Ich organisiere...', 'Ich suche für Sie...', 'Einen Moment bitte...'];
 
-  // Loading animation management
+  // Start the loading animation for a specific message
   const startLoadingAnimation = (messageId: number) => {
     let currentPhrase = 0;
     
@@ -112,6 +165,7 @@ export default function Chat() {
     }));
   };
 
+  // Stop the loading animation and clean up
   const stopLoadingAnimation = (messageId: number) => {
     const loadingState = loadingMessages[messageId];
     if (loadingState?.interval) {
@@ -125,7 +179,11 @@ export default function Chat() {
     });
   };
 
-  // Cleanup intervals on unmount
+  // ===============================================
+  // === EFFECT HOOKS ===
+  // ===============================================
+  
+  // Cleanup loading animations when component unmounts
   useEffect(() => {
     return () => {
       Object.values(loadingMessages).forEach(state => {
@@ -136,15 +194,13 @@ export default function Chat() {
     };
   }, [loadingMessages]);
 
+  // Listen for messages from parent window (consent updates, reset commands)
   useEffect(() => {
-    // Listen for consent status from parent window
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'consentUpdate') {
         setHasConsent(event.data.hasConsent);
         setSessionId(event.data.sessionId);
         setUserId(event.data.userId);
-        // Don't set showConsent here - handled by accept/reject handlers
-        console.log('Received consent update with session ID:', event.data.sessionId, 'user ID:', event.data.userId);
       } else if (event.data?.type === 'showConsent') {
         // Force animation restart by changing key only when showing
         setConsentKey(prev => prev + 1);
@@ -163,15 +219,14 @@ export default function Chat() {
         setLoadingMessages({});
         // Reset consent modal state completely
         setShowConsent(false);
-        // Don't change key here - wait for next show
-        console.log('Chat reset due to consent revocation');
       }
     };
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [loadingMessages]);
 
+  // Inject CSS styles for animations and responsive design
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
@@ -292,10 +347,6 @@ export default function Chat() {
           background: rgba(255,255,255,1) !important;
         }
       }
-      
-
-      
-
       
       .expand-btn:hover {
         background: #f5f5f5 !important;
@@ -436,8 +487,8 @@ export default function Chat() {
     };
   }, []);
 
+  // Auto-scroll to bottom when new messages arrive
   useLayoutEffect(() => {
-    // Gentle scroll to bottom 
     const scrollToBottom = () => {
       if (endRef.current) {
         endRef.current.scrollIntoView({ 
@@ -463,7 +514,7 @@ export default function Chat() {
     });
   }, [msgs]);
   
-  // Prevent scrolling on mobile (except message list)
+  // Handle mobile scrolling behavior - prevent body scroll while allowing message list scroll
   useEffect(() => {
     if (!isMobile) return;
     
@@ -548,9 +599,13 @@ export default function Chat() {
       }
     };
   }, [isMobile]);
+
+  // ===============================================
+  // === EVENT HANDLERS ===
+  // ===============================================
   
+  // Handle user accepting consent (save preferences and request pending search)
   const handleConsentAccept = () => {
-    // Reset the modal state and key for next time
     setShowConsent(false);
     setConsentKey(prev => prev + 1);
     
@@ -568,8 +623,8 @@ export default function Chat() {
     }, 100);
   };
 
+  // Handle user rejecting consent (clear all data and reset chat)
   const handleConsentReject = () => {
-    // Reset the modal state - don't change key yet
     setShowConsent(false);
     
     // Clear all messages and state - complete reset
@@ -588,24 +643,61 @@ export default function Chat() {
     window.parent.postMessage({type: 'consentRejected'}, '*');
   };
 
+  // Show consent dialog if user doesn't have consent
   const showConsentDialog = () => {
     if (!hasConsent) {
       setShowConsent(true);
     }
   };
 
+  // Handle chat expand/collapse button click
+  const handleExpand = () => {
+    window.parent.postMessage({type: 'expandChat'}, '*');
+  };
+
+  // Handle settings button click (show consent modal)
+  const handleSettings = () => {
+    setConsentKey(prev => prev + 1);
+    setShowConsent(true);
+  };
+
+  // ===============================================
+  // === HELPER FUNCTIONS ===
+  // ===============================================
+  
+  // Update carousel scroll button visibility based on scroll position
+  const updateCarouselState = (messageId: number) => {
+    const container = document.getElementById(`carousel-${messageId}`);
+    if (container) {
+      const canScrollLeft = container.scrollLeft > 0;
+      const canScrollRight = container.scrollLeft < container.scrollWidth - container.clientWidth;
+      setCarouselStates(prev => ({
+        ...prev,
+        [messageId]: { canScrollLeft, canScrollRight }
+      }));
+    }
+  };
+
+  // ===============================================
+  // === API COMMUNICATION HANDLER ===
+  // ===============================================
+  
+  // Listen for search requests from parent window and handle API communication
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'config') return null;
+      
+      // Handle mobile status updates
       if (e.data?.type === 'mobileStatus' && typeof e.data.isMobile === 'boolean') {
         setIsMobile(e.data.isMobile);
       }
+      
+      // Handle search requests with loading animation and API call
       if (e.data?.type === 'search' && typeof e.data.text === 'string') {
-        // Consent check is now handled by parent window
-        const currentSessionId = e.data.sessionId || sessionId;
-        const currentUserId = e.data.userId || userId;
+        const currentSessionId = sessionId || e.data.sessionId;
+        const currentUserId = userId || e.data.userId;
         
-        // Add user message
+        // Add user message immediately
         const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
         setMsgs(m => [...m, userMsg]);
         
@@ -634,7 +726,7 @@ export default function Chat() {
           // Stop loading animation
           stopLoadingAnimation(loadingMsgId);
           
-          // Prepare products immediately to avoid rendering delay
+          // Prepare products for display
           const highlightedProducts = data.success && data.search_results?.results 
             ? data.search_results.results
                 .filter((product: Product) => data.highlight_ids?.includes(product.id))
@@ -643,7 +735,7 @@ export default function Chat() {
 
           // Replace loading message with AI response
           const botMsg = {
-            id: loadingMsgId, // Same ID to replace loading message
+            id: loadingMsgId,
             text: data.success ? data.response : 'Entschuldigung, ich konnte keine Antwort finden.',
             isUser: false,
             isLoading: false
@@ -655,7 +747,7 @@ export default function Chat() {
             )
           );
           
-          // Trigger avatar jump after message replacement
+          // Trigger avatar jump animation after message appears
           setTimeout(() => {
             setJumpingAvatars(prev => ({...prev, [botMsg.id]: true}));
             setTimeout(() => {
@@ -663,7 +755,7 @@ export default function Chat() {
             }, 1200);
           }, 200);
 
-          // Add products as separate message (products already processed)
+          // Add products as separate message if available
           if (highlightedProducts.length > 0) {
             setTimeout(() => {
               const productsMsg = {
@@ -674,7 +766,7 @@ export default function Chat() {
               };
               setMsgs(m => [...m, productsMsg]);
               
-              // Trigger avatar jump for product message (delayed)
+              // Trigger avatar jump for product message
               setTimeout(() => {
                 setJumpingAvatars(prev => ({...prev, [productsMsg.id]: true}));
                 setTimeout(() => {
@@ -686,12 +778,13 @@ export default function Chat() {
         })
         .catch(error => {
           console.error('Chat API error:', error);
+          
           // Stop loading animation on error
           stopLoadingAnimation(loadingMsgId);
           
           // Replace loading message with error message
           const errorMsg = {
-            id: loadingMsgId, // Same ID to replace loading message
+            id: loadingMsgId,
             text: 'Entschuldigung, es gab ein technisches Problem. Bitte versuchen Sie es später erneut.',
             isUser: false,
             isLoading: false
@@ -705,34 +798,18 @@ export default function Chat() {
         });
       }
     };
+    
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, []);
+  }, [sessionId, userId, loadingPhrases, startLoadingAnimation, stopLoadingAnimation]);
 
-  const handleExpand = () => {
-    window.parent.postMessage({type: 'expandChat'}, '*');
-  };
-
-  const handleSettings = () => {
-    // Force animation restart by changing key
-    setConsentKey(prev => prev + 1);
-    setShowConsent(true);
-  };
-
-  const updateCarouselState = (messageId: number) => {
-    const container = document.getElementById(`carousel-${messageId}`);
-    if (container) {
-      const canScrollLeft = container.scrollLeft > 0;
-      const canScrollRight = container.scrollLeft < container.scrollWidth - container.clientWidth;
-      setCarouselStates(prev => ({
-        ...prev,
-        [messageId]: { canScrollLeft, canScrollRight }
-      }));
-    }
-  };
-
+  // ===============================================
+  // === COMPONENT RENDER ===
+  // ===============================================
   return (
     <>
+      {/* ========== CONSENT MODAL ========== */}
+      {/* Privacy consent dialog - shown when user needs to accept/reject cookies */}
       {showConsent && (
         <div style={s.consentOverlay}>
           <div key={consentKey} style={s.consentModal}>
@@ -766,6 +843,7 @@ export default function Chat() {
               </div>
             </div>
             
+            {/* Legal information */}
             <div style={s.consentDetails}>
               <div><strong>Verantwortliche Stelle:</strong> Singulary</div>
               <div><strong>Zweck:</strong> Chat-Funktionalität, Personalisierung</div>
@@ -773,6 +851,7 @@ export default function Chat() {
               <div><strong>Rechtsgrundlage:</strong> Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)</div>
             </div>
             
+            {/* Privacy policy link */}
             <div style={s.consentFooter}>
               Weitere Informationen finden Sie in unserer{' '}
               <a 
@@ -785,6 +864,7 @@ export default function Chat() {
               </a>
             </div>
             
+            {/* Accept/Reject buttons */}
             <div style={s.consentButtons}>
               <button 
                 className="consent-reject"
@@ -805,143 +885,163 @@ export default function Chat() {
         </div>
       )}
       
+      {/* ========== MAIN CHAT CONTAINER ========== */}
       <div ref={containerRef} style={{...s.container, ...(isMobile ? {overflow: 'hidden', touchAction: 'none'} : {})}}>
+        
+        {/* ========== HEADER BUTTONS ========== */}
+        {/* Expand and settings buttons in top-left corner */}
         <div style={s.header}>
-        {!isMobile && (
+          {/* Expand button - only shown on desktop */}
+          {!isMobile && (
+            <button 
+              className="expand-btn"
+              style={s.expandBtn}
+              onClick={handleExpand}
+              title="Expand Chat"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
+          
+          {/* Settings button - opens privacy settings */}
           <button 
-            className="expand-btn"
-            style={s.expandBtn}
-            onClick={handleExpand}
-            title="Expand Chat"
+            className="settings-btn"
+            style={s.settingsBtn}
+            onClick={handleSettings}
+            title="Privacy Settings"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-        )}
-        <button 
-          className="settings-btn"
-          style={s.settingsBtn}
-          onClick={handleSettings}
-          title="Privacy Settings"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
-      <div ref={msgListRef} className="msg-list" style={isMobile ? s.msgList : s.msgListWithButton}>
-        <div style={{ marginTop: 'auto' }} />
-        {msgs.map((m, index) => {
-          // Avatar only shows on the very last bot message (moves from text to products)
-          const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
-          
-          return m.isUser ? (
-            <div key={m.id} style={s.userMsg}>{m.text}</div>
-          ) : (
-            <div key={m.id} style={m.products && m.products.length > 0 && !m.text ? s.msgWrapperProducts : s.msgWrapper}>
-              {/* Text message with side avatar */}
-              {m.text && (
-                <>
-                                     {/* Show avatar for last bot message */}
-                   {isLastBotMessage ? (
-                     <img 
-                       src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
-                       alt="Assistant"
-                       style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
-                     />
-                   ) : (
-                     <div style={s.avatarPlaceholder} />
-                   )}
-                  <div style={s.botMsg} className={m.isLoading ? 'loading-text' : ''}>{m.text}</div>
-                </>
-              )}
-              
-              {/* Products-only message full width */}
-              {m.products && m.products.length > 0 && !m.text && (
-                <>
-                  {/* Show avatar for last bot message on the left */}
-                  {isLastBotMessage ? (
-                    <img 
-                      src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
-                      alt="Assistant"
-                      style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
-                    />
-                  ) : (
-                    <div style={s.avatarPlaceholder} />
-                  )}
-                  <div style={{width: '100%', overflow: 'hidden', background: 'transparent'}}>
-                    <div className="product-carousel" style={s.productCarousel}>
-                    {/* Left arrow */}
-                    {carouselStates[m.id]?.canScrollLeft && (
-                      <button 
-                        className="carousel-btn"
-                        style={{...s.carouselBtn, ...s.carouselBtnLeft}}
-                        onClick={() => {
-                          const container = document.getElementById(`carousel-${m.id}`);
-                          if (container) {
-                            const cardWidth = 100 + 8; // card width + gap
-                            container.scrollLeft -= cardWidth;
-                          }
-                        }}
-                      >
-                        ‹
-                      </button>
+        </div>
+        
+        {/* ========== MESSAGE LIST ========== */}
+        {/* Scrollable container for all chat messages */}
+        <div ref={msgListRef} className="msg-list" style={isMobile ? s.msgList : s.msgListWithButton}>
+          <div style={{ marginTop: 'auto' }} />
+          {msgs.map((m, index) => {
+            // Avatar only shows on the very last bot message (moves from text to products)
+            const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
+            
+            return m.isUser ? (
+              /* ========== USER MESSAGE ========== */
+              <div key={m.id} style={s.userMsg}>{m.text}</div>
+            ) : (
+              /* ========== BOT MESSAGE ========== */
+              <div key={m.id} style={m.products && m.products.length > 0 && !m.text ? s.msgWrapperProducts : s.msgWrapper}>
+                
+                {/* ========== TEXT MESSAGE WITH AVATAR ========== */}
+                {m.text && (
+                  <>
+                    {/* Show avatar for last bot message */}
+                    {isLastBotMessage ? (
+                      <img 
+                        src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
+                        alt="Assistant"
+                        style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
+                      />
+                    ) : (
+                      <div style={s.avatarPlaceholder} />
+                    )}
+                    {/* Message text with loading animation if applicable */}
+                    <div style={s.botMsg} className={m.isLoading ? 'loading-text' : ''}>{m.text}</div>
+                  </>
+                )}
+                
+                {/* ========== PRODUCT CAROUSEL ========== */}
+                {/* Products-only message full width */}
+                {m.products && m.products.length > 0 && !m.text && (
+                  <>
+                    {/* Show avatar for last bot message on the left */}
+                    {isLastBotMessage ? (
+                      <img 
+                        src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
+                        alt="Assistant"
+                        style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
+                      />
+                    ) : (
+                      <div style={s.avatarPlaceholder} />
                     )}
                     
-                    {/* Scrollable products */}
-                    <div 
-                      id={`carousel-${m.id}`}
-                      className="product-scroll"
-                      style={s.productScroll}
-                      onScroll={() => updateCarouselState(m.id)}
-                      onLoad={() => updateCarouselState(m.id)}
-                    >
-                      {m.products.map((product: Product) => (
-                        <div key={product.id} style={s.productCard}>
-                          <img 
-                            src={product.data.Bild} 
-                            alt={product.data.Titel}
-                            style={s.productImage}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
+                    {/* Product carousel container */}
+                    <div style={{width: '100%', overflow: 'hidden', background: 'transparent'}}>
+                      <div className="product-carousel" style={s.productCarousel}>
+                        
+                        {/* Left navigation arrow */}
+                        {carouselStates[m.id]?.canScrollLeft && (
+                          <button 
+                            className="carousel-btn"
+                            style={{...s.carouselBtn, ...s.carouselBtnLeft}}
+                            onClick={() => {
+                              const container = document.getElementById(`carousel-${m.id}`);
+                              if (container) {
+                                const cardWidth = 100 + 8; // card width + gap
+                                container.scrollLeft -= cardWidth;
+                              }
                             }}
-                          />
-                          <div style={s.productTitle}>{product.data.Titel?.substring(0, 40)}...</div>
-                          <div style={s.productInfo}>
-                            {product.data.Zoll}" | {product.data.Marke}
-                          </div>
+                          >
+                            ‹
+                          </button>
+                        )}
+                        
+                        {/* Scrollable product list */}
+                        <div 
+                          id={`carousel-${m.id}`}
+                          className="product-scroll"
+                          style={s.productScroll}
+                          onScroll={() => updateCarouselState(m.id)}
+                          onLoad={() => updateCarouselState(m.id)}
+                        >
+                          {m.products.map((product: Product) => (
+                            /* Individual product card */
+                            <div key={product.id} style={s.productCard}>
+                              <img 
+                                src={product.data.Bild} 
+                                alt={product.data.Titel}
+                                style={s.productImage}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                              <div style={s.productTitle}>{product.data.Titel?.substring(0, 40)}...</div>
+                              <div style={s.productInfo}>
+                                {product.data.Zoll}" | {product.data.Marke}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                        
+                        {/* Right navigation arrow */}
+                        {carouselStates[m.id]?.canScrollRight && (
+                          <button 
+                            className="carousel-btn"
+                            style={{...s.carouselBtn, ...s.carouselBtnRight}}
+                            onClick={() => {
+                              const container = document.getElementById(`carousel-${m.id}`);
+                              if (container) {
+                                const cardWidth = 100 + 8; // card width + gap
+                                container.scrollLeft += cardWidth;
+                              }
+                            }}
+                          >
+                            ›
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    
-                    {/* Right arrow */}
-                    {carouselStates[m.id]?.canScrollRight && (
-                      <button 
-                        className="carousel-btn"
-                        style={{...s.carouselBtn, ...s.carouselBtnRight}}
-                        onClick={() => {
-                          const container = document.getElementById(`carousel-${m.id}`);
-                          if (container) {
-                            const cardWidth = 100 + 8; // card width + gap
-                            container.scrollLeft += cardWidth;
-                          }
-                        }}
-                      >
-                        ›
-                      </button>
-                    )}
-                  </div>
-                                  </div>
-                </>
-              )}
-            </div>
-          );
-        })}
-        <div ref={endRef} />
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {/* Auto-scroll target */}
+          <div ref={endRef} />
+        </div>
       </div>
-    </div>
     </>
   );
 }
