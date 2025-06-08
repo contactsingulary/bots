@@ -293,6 +293,18 @@ export default function Chat() {
         setHasConsent(event.data.hasConsent);
         setSessionId(event.data.sessionId);
         setUserId(event.data.userId);
+      } else if (event.data?.type === 'mobileInputFocus') {
+        // On mobile, when input is focused, scroll to show latest messages
+        if (isMobile && msgListRef.current) {
+          setTimeout(() => {
+            if (msgListRef.current) {
+              msgListRef.current.scrollTo({
+                top: msgListRef.current.scrollHeight,
+                behavior: 'smooth'
+              });
+            }
+          }, 300); // Delay to account for keyboard animation
+        }
       } else if (event.data?.type === 'showConsent') {
         // Ensure modal is hidden first, then show with new key
         setShowConsent(false);
