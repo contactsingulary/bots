@@ -127,6 +127,9 @@ export default function Chat() {
   const [historyLoaded, setHistoryLoaded] = useState(false);     // Prevent duplicate loading
   const [isLoadingHistory, setIsLoadingHistory] = useState(false); // Loading indicator
   
+  // Message ID counter for unique keys (using ref for immediate updates)
+  const messageIdCounter = useRef(1);
+  
   // Loading animation system
   const [loadingMessages, setLoadingMessages] = useState<{[key: number]: {currentPhrase: number, interval: NodeJS.Timeout | null}}>({});
   
@@ -160,13 +163,13 @@ export default function Chat() {
         
         // Convert interactions to chat messages
         const historyMessages: Msg[] = [];
-        let messageId = 1; // Start with ID 1, new messages will continue from here
+        let currentId = 1; // Start with ID 1, new messages will continue from here
         
         recentInteractions.forEach((interaction: any) => {
           // Add user question
           if (interaction.question) {
             historyMessages.push({
-              id: messageId++,
+              id: currentId++,
               text: interaction.question,
               isUser: true
             });
@@ -175,7 +178,7 @@ export default function Chat() {
           // Add bot response
           if (interaction.response) {
             historyMessages.push({
-              id: messageId++,
+              id: currentId++,
               text: interaction.response,
               isUser: false
             });
@@ -195,7 +198,7 @@ export default function Chat() {
             
             if (products.length > 0) {
               historyMessages.push({
-                id: messageId++,
+                id: currentId++,
                 text: '',
                 isUser: false,
                 products: products
@@ -204,8 +207,9 @@ export default function Chat() {
           }
         });
         
-        // Add history messages to chat
+        // Add history messages to chat and update counter
         setMsgs(historyMessages);
+        messageIdCounter.current = currentId; // Set counter to continue from where history ended
         
         console.log(`Loaded ${recentInteractions.length} conversations (${historyMessages.length} messages)`);
       } else {
@@ -310,12 +314,13 @@ export default function Chat() {
         setLoadingMessages({});
         // Reset consent modal state completely
         setShowConsent(false);
-        // Reset history loading state
+        // Reset history loading state and message counter
         setHistoryLoaded(false);
         setIsLoadingHistory(false);
+        messageIdCounter.current = 1;
       } else if (event.data?.type === 'getScrollPosition') {
-        // Return current scroll position to parent
-        if (msgListRef.current) {
+        // Return current scroll position to parent (only on desktop)
+        if (!isMobile && msgListRef.current) {
           const scrollPosition = msgListRef.current.scrollTop;
           window.parent.postMessage({
             type: 'scrollPosition',
@@ -323,8 +328,8 @@ export default function Chat() {
           }, '*');
         }
       } else if (event.data?.type === 'setScrollPosition' && typeof event.data.position === 'number') {
-        // Restore scroll position after expansion/collapse
-        if (msgListRef.current) {
+        // Restore scroll position after expansion/collapse (only on desktop)
+        if (!isMobile && msgListRef.current) {
           // Use smooth scroll to the saved position
           msgListRef.current.scrollTo({
             top: event.data.position,
@@ -850,9 +855,11 @@ export default function Chat() {
     }
   };
 
-  // Handle chat expand/collapse button click
+  // Handle chat expand/collapse button click (desktop only)
   const handleExpand = () => {
-    window.parent.postMessage({type: 'expandChat'}, '*');
+    if (!isMobile) {
+      window.parent.postMessage({type: 'expandChat'}, '*');
+    }
   };
 
   // Handle settings button click (show consent modal)
@@ -900,18 +907,18 @@ export default function Chat() {
         const currentSessionId = sessionId || e.data.sessionId;
         const currentUserId = userId || e.data.userId;
         
-        // Generate message IDs that don't conflict with history
-        const getNextMessageId = () => {
-          const existingIds = msgs.map(m => m.id);
-          return existingIds.length > 0 ? Math.max(...existingIds) + 1 : Date.now();
-        };
+        // Generate unique message IDs using counter
+        const userMsgId = messageIdCounter.current;
+        const loadingMsgId = messageIdCounter.current + 1;
+        
+        // Update counter for next messages
+        messageIdCounter.current += 2;
         
         // Add user message immediately
-        const userMsg = {id: getNextMessageId(), text: e.data.text, isUser: true};
+        const userMsg = {id: userMsgId, text: e.data.text, isUser: true};
         setMsgs(m => [...m, userMsg]);
         
         // Add loading message and start animation
-        const loadingMsgId = getNextMessageId() + 1;
         const loadingMsg = {id: loadingMsgId, text: loadingPhrases[0], isUser: false, isLoading: true};
         setMsgs(m => [...m, loadingMsg]);
         startLoadingAnimation(loadingMsgId);
@@ -971,13 +978,12 @@ export default function Chat() {
           // Add products as separate message if available
           if (allProducts.length > 0) {
             setTimeout(() => {
-              const getNextProductsId = () => {
-                const existingIds = msgs.map(m => m.id);
-                return existingIds.length > 0 ? Math.max(...existingIds) + 1 : Date.now() + 2;
-              };
+              // Generate unique ID for products message
+              const productsMsgId = messageIdCounter.current;
+              messageIdCounter.current += 1;
               
               const productsMsg = {
-                id: getNextProductsId(),
+                id: productsMsgId,
                 text: '',
                 isUser: false,
                 products: allProducts
@@ -986,9 +992,9 @@ export default function Chat() {
               
               // Trigger avatar jump for product message
               setTimeout(() => {
-                setJumpingAvatars(prev => ({...prev, [productsMsg.id]: true}));
+                setJumpingAvatars(prev => ({...prev, [productsMsgId]: true}));
                 setTimeout(() => {
-                  setJumpingAvatars(prev => ({...prev, [productsMsg.id]: false}));
+                  setJumpingAvatars(prev => ({...prev, [productsMsgId]: false}));
                 }, 1200);
               }, 300);
             }, 1500);
