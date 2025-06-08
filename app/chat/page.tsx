@@ -75,6 +75,7 @@ export default function Chat() {
   const [hasConsent, setHasConsent] = useState(false);
   const [nonEssentialCookies, setNonEssentialCookies] = useState(true);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [consentKey, setConsentKey] = useState(0);
   const [loadingMessages, setLoadingMessages] = useState<{[key: number]: {currentPhrase: number, interval: NodeJS.Timeout | null}}>({});
   const endRef = useRef<HTMLDivElement>(null);
@@ -141,8 +142,9 @@ export default function Chat() {
       if (event.data?.type === 'consentUpdate') {
         setHasConsent(event.data.hasConsent);
         setSessionId(event.data.sessionId);
+        setUserId(event.data.userId);
         // Don't set showConsent here - handled by accept/reject handlers
-        console.log('Received consent update with session ID:', event.data.sessionId);
+        console.log('Received consent update with session ID:', event.data.sessionId, 'user ID:', event.data.userId);
       } else if (event.data?.type === 'showConsent') {
         // Force animation restart by changing key only when showing
         setConsentKey(prev => prev + 1);
@@ -601,6 +603,7 @@ export default function Chat() {
       if (e.data?.type === 'search' && typeof e.data.text === 'string') {
         // Consent check is now handled by parent window
         const currentSessionId = e.data.sessionId || sessionId;
+        const currentUserId = e.data.userId || userId;
         
         // Add user message
         const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
@@ -612,7 +615,7 @@ export default function Chat() {
         setMsgs(m => [...m, loadingMsg]);
         startLoadingAnimation(loadingMsgId);
         
-        // Call the chat API with session ID
+        // Call the chat API with session ID and user ID
         fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -622,7 +625,8 @@ export default function Chat() {
             message: e.data.text,
             search_limit: 50,
             ranked_limit: 10,
-            session_id: currentSessionId
+            session_id: currentSessionId,
+            user_id: currentUserId
           })
         })
         .then(response => response.json())
