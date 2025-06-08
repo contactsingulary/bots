@@ -196,7 +196,7 @@ export default function Chat() {
     };
   }, [loadingMessages]);
 
-  // Listen for messages from parent window (consent updates, reset commands)
+  // Listen for messages from parent window (consent updates, reset commands, scroll position)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'consentUpdate') {
@@ -221,6 +221,24 @@ export default function Chat() {
         setLoadingMessages({});
         // Reset consent modal state completely
         setShowConsent(false);
+      } else if (event.data?.type === 'getScrollPosition') {
+        // Return current scroll position to parent
+        if (msgListRef.current) {
+          const scrollPosition = msgListRef.current.scrollTop;
+          window.parent.postMessage({
+            type: 'scrollPosition',
+            position: scrollPosition
+          }, '*');
+        }
+      } else if (event.data?.type === 'setScrollPosition' && typeof event.data.position === 'number') {
+        // Restore scroll position after expansion/collapse
+        if (msgListRef.current) {
+          // Use smooth scroll to the saved position
+          msgListRef.current.scrollTo({
+            top: event.data.position,
+            behavior: 'smooth'
+          });
+        }
       }
     };
     
