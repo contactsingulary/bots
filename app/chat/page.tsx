@@ -123,6 +123,10 @@ export default function Chat() {
   const [sessionId, setSessionId] = useState<string | null>(null); // Current session ID
   const [userId, setUserId] = useState<string | null>(null);     // Persistent user ID
   
+  // History loading state
+  const [historyLoaded, setHistoryLoaded] = useState(false);     // Prevent duplicate loading
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false); // Loading indicator
+  
   // Loading animation system
   const [loadingMessages, setLoadingMessages] = useState<{[key: number]: {currentPhrase: number, interval: NodeJS.Timeout | null}}>({});
   
@@ -133,6 +137,88 @@ export default function Chat() {
   const endRef = useRef<HTMLDivElement>(null);           // Auto-scroll target
   const containerRef = useRef<HTMLDivElement>(null);     // Main container
   const msgListRef = useRef<HTMLDivElement>(null);       // Message list container
+
+  // ===============================================
+  // === CHAT HISTORY LOADING SYSTEM ===
+  // ===============================================
+  
+  // Load previous conversations from memory API
+  const loadChatHistory = async (currentSessionId: string, currentUserId: string) => {
+    if (historyLoaded || isLoadingHistory || !currentSessionId || !currentUserId) {
+      return;
+    }
+    
+    setIsLoadingHistory(true);
+    
+    try {
+      const response = await fetch(`/api/memory?session_id=${currentSessionId}&user_id=${currentUserId}`);
+      const data = await response.json();
+      
+      if (data.success && data.memory && data.memory.length > 0) {
+        // Get the last 5 interactions (conversations)
+        const recentInteractions = data.memory.slice(-5);
+        
+        // Convert interactions to chat messages
+        const historyMessages: Msg[] = [];
+        let messageId = 1; // Start with ID 1, new messages will continue from here
+        
+        recentInteractions.forEach((interaction: any) => {
+          // Add user question
+          if (interaction.question) {
+            historyMessages.push({
+              id: messageId++,
+              text: interaction.question,
+              isUser: true
+            });
+          }
+          
+          // Add bot response
+          if (interaction.response) {
+            historyMessages.push({
+              id: messageId++,
+              text: interaction.response,
+              isUser: false
+            });
+          }
+          
+          // Add products if available (from search_results)
+          if (interaction.search_results?.results && interaction.search_results.results.length > 0) {
+            const products = interaction.search_results.results
+              .map((product: Product) => ({
+                ...product,
+                isHighlighted: interaction.highlight_ids?.includes(product.id) || false
+              }))
+              .sort((a: Product & {isHighlighted: boolean}, b: Product & {isHighlighted: boolean}) => 
+                (b.isHighlighted ? 1 : 0) - (a.isHighlighted ? 1 : 0)
+              )
+              .slice(0, 12);
+            
+            if (products.length > 0) {
+              historyMessages.push({
+                id: messageId++,
+                text: '',
+                isUser: false,
+                products: products
+              });
+            }
+          }
+        });
+        
+        // Add history messages to chat
+        setMsgs(historyMessages);
+        
+        console.log(`Loaded ${recentInteractions.length} conversations (${historyMessages.length} messages)`);
+      } else {
+        console.log('No chat history found or session does not exist');
+      }
+      
+    } catch (error) {
+      console.error('Failed to load chat history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+      setHistoryLoaded(true);
+    }
+  };
 
   // ===============================================
   // === LOADING ANIMATION SYSTEM ===
@@ -204,9 +290,12 @@ export default function Chat() {
         setSessionId(event.data.sessionId);
         setUserId(event.data.userId);
       } else if (event.data?.type === 'showConsent') {
-        // Force animation restart by changing key only when showing
-        setConsentKey(prev => prev + 1);
-        setShowConsent(true);
+        // Ensure modal is hidden first, then show with new key
+        setShowConsent(false);
+        setTimeout(() => {
+          setConsentKey(prev => prev + 1);
+          setShowConsent(true);
+        }, 50);
       } else if (event.data?.type === 'resetChat') {
         // Clear all messages when consent is revoked
         setMsgs([]);
@@ -221,6 +310,9 @@ export default function Chat() {
         setLoadingMessages({});
         // Reset consent modal state completely
         setShowConsent(false);
+        // Reset history loading state
+        setHistoryLoaded(false);
+        setIsLoadingHistory(false);
       } else if (event.data?.type === 'getScrollPosition') {
         // Return current scroll position to parent
         if (msgListRef.current) {
@@ -245,6 +337,22 @@ export default function Chat() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [loadingMessages]);
+
+  // Load chat history when session IDs are available
+  useEffect(() => {
+    console.log('History loading check:', { hasConsent, sessionId, userId, historyLoaded, isLoadingHistory });
+    
+    if (hasConsent && sessionId && userId && !historyLoaded && !isLoadingHistory) {
+      console.log('✅ Loading chat history for session:', sessionId, 'user:', userId);
+      loadChatHistory(sessionId, userId);
+    } else {
+      if (!hasConsent) console.log('❌ No consent yet');
+      if (!sessionId) console.log('❌ No session ID yet');
+      if (!userId) console.log('❌ No user ID yet');
+      if (historyLoaded) console.log('ℹ️ History already loaded');
+      if (isLoadingHistory) console.log('⏳ Currently loading history');
+    }
+  }, [hasConsent, sessionId, userId, historyLoaded, isLoadingHistory]);
 
   // Inject CSS styles for animations and responsive design
   useEffect(() => {
@@ -517,6 +625,16 @@ export default function Chat() {
         }
       }
       
+      /* Chat loading spinner animation */
+      @keyframes chatSpin {
+        0% { 
+          transform: rotate(0deg);
+        }
+        100% { 
+          transform: rotate(360deg);
+        }
+      }
+      
       /* Product card hover effects */
       .product-card:hover {
         transform: translateY(-2px) !important;
@@ -716,6 +834,11 @@ export default function Chat() {
     });
     setLoadingMessages({});
     
+    // Reset consent key after modal is hidden to ensure clean state
+    setTimeout(() => {
+      setConsentKey(prev => prev + 1);
+    }, 100);
+    
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
   };
@@ -734,8 +857,11 @@ export default function Chat() {
 
   // Handle settings button click (show consent modal)
   const handleSettings = () => {
-    setConsentKey(prev => prev + 1);
-    setShowConsent(true);
+    setShowConsent(false);
+    setTimeout(() => {
+      setConsentKey(prev => prev + 1);
+      setShowConsent(true);
+    }, 50);
   };
 
   // ===============================================
@@ -774,12 +900,18 @@ export default function Chat() {
         const currentSessionId = sessionId || e.data.sessionId;
         const currentUserId = userId || e.data.userId;
         
+        // Generate message IDs that don't conflict with history
+        const getNextMessageId = () => {
+          const existingIds = msgs.map(m => m.id);
+          return existingIds.length > 0 ? Math.max(...existingIds) + 1 : Date.now();
+        };
+        
         // Add user message immediately
-        const userMsg = {id: Date.now(), text: e.data.text, isUser: true};
+        const userMsg = {id: getNextMessageId(), text: e.data.text, isUser: true};
         setMsgs(m => [...m, userMsg]);
         
         // Add loading message and start animation
-        const loadingMsgId = Date.now() + 1;
+        const loadingMsgId = getNextMessageId() + 1;
         const loadingMsg = {id: loadingMsgId, text: loadingPhrases[0], isUser: false, isLoading: true};
         setMsgs(m => [...m, loadingMsg]);
         startLoadingAnimation(loadingMsgId);
@@ -839,8 +971,13 @@ export default function Chat() {
           // Add products as separate message if available
           if (allProducts.length > 0) {
             setTimeout(() => {
+              const getNextProductsId = () => {
+                const existingIds = msgs.map(m => m.id);
+                return existingIds.length > 0 ? Math.max(...existingIds) + 1 : Date.now() + 2;
+              };
+              
               const productsMsg = {
-                id: Date.now() + 2,
+                id: getNextProductsId(),
                 text: '',
                 isUser: false,
                 products: allProducts
@@ -1004,6 +1141,28 @@ export default function Chat() {
         {/* Scrollable container for all chat messages */}
         <div ref={msgListRef} className="msg-list" style={isMobile ? s.msgList : s.msgListWithButton}>
           <div style={{ marginTop: 'auto' }} />
+          
+          {/* Loading history indicator */}
+          {isLoadingHistory && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              padding: '8px',
+              marginBottom: '8px'
+            }}>
+              <div 
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid #f0f0f0',
+                  borderTop: '2px solid #666',
+                  borderRadius: '50%',
+                  animation: 'chatSpin 1s linear infinite'
+                }}
+              />
+            </div>
+          )}
+          
           {msgs.map((m, index) => {
             // Avatar only shows on the very last bot message (moves from text to products)
             const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
