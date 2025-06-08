@@ -12,8 +12,10 @@ type Product = {
     Titel: string;
     Zoll: string;
     Marke: string;
+    URL: string;
     [key: string]: any;
   };
+  isHighlighted?: boolean;
   [key: string]: any;
 }
 
@@ -56,7 +58,7 @@ const s = {
   // Product carousel styles
   productCarousel: {position:'relative' as const, marginTop:'8px', paddingLeft:'0px', paddingRight:'0px', overflow:'hidden'},
   productScroll: {display:'flex', gap:'8px', overflowX:'auto' as const, scrollBehavior:'smooth' as const, scrollbarWidth:'none' as const, msOverflowStyle:'none' as const, paddingLeft:'0px', paddingRight:'0px', scrollSnapType:'x mandatory' as const, borderRadius:'12px'},
-  productCard: {minWidth:'100px', maxWidth:'100px', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'6px', padding:'6px', background:'#fff', fontSize:'11px', flexShrink:0, scrollSnapAlign:'center' as const, scrollSnapStop:'always' as const, boxShadow:'0 1px 3px rgba(0,0,0,0.1)'},
+  productCard: {minWidth:'100px', maxWidth:'100px', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'6px', padding:'6px', background:'#fff', fontSize:'11px', flexShrink:0, scrollSnapAlign:'center' as const, scrollSnapStop:'always' as const, boxShadow:'0 1px 3px rgba(0,0,0,0.1)', cursor:'pointer', transition:'transform 0.2s, box-shadow 0.2s'},
   productImage: {width:'100%', height:'60px', objectFit:'cover' as const, borderRadius:'3px', marginBottom:'3px'},
   productTitle: {fontWeight:'500', lineHeight:'1.2', marginBottom:'2px', fontSize:'10px'},
   productInfo: {color:'#666', fontSize:'9px'},
@@ -480,6 +482,63 @@ export default function Chat() {
         font-style: italic;
         color: #666 !important;
       }
+      
+      /* Star shimmer animation */
+      @keyframes starShimmer {
+        0% { 
+          text-shadow: 0 0 2px rgba(255, 215, 0, 0.8);
+          transform: scale(1);
+        }
+        50% { 
+          text-shadow: 0 0 8px rgba(255, 215, 0, 1), 0 0 12px rgba(255, 255, 255, 0.6);
+          transform: scale(1.05);
+        }
+        100% { 
+          text-shadow: 0 0 2px rgba(255, 215, 0, 0.8);
+          transform: scale(1);
+        }
+      }
+      
+      /* Product card hover effects */
+      .product-card:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+      }
+      
+      .product-card:active {
+        transform: translateY(0px) !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+      }
+      
+      /* Highlighted product styles */
+      .product-card-highlighted {
+        position: relative !important;
+      }
+      
+      .product-card-highlighted::before {
+        content: '★';
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        background: #000;
+        color: #FFD700;
+        width: 22px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        z-index: 1;
+        font-weight: bold;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        animation: starShimmer 2s ease-in-out infinite;
+      }
+      
+      .product-card-highlighted:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+      }
     `;
     document.head.appendChild(style);
     return () => {
@@ -726,11 +785,15 @@ export default function Chat() {
           // Stop loading animation
           stopLoadingAnimation(loadingMsgId);
           
-          // Prepare products for display
-          const highlightedProducts = data.success && data.search_results?.results 
+          // Prepare all products for display with highlight information
+          const allProducts = data.success && data.search_results?.results 
             ? data.search_results.results
-                .filter((product: Product) => data.highlight_ids?.includes(product.id))
-                .slice(0, 6)
+                .map((product: Product) => ({
+                  ...product,
+                  isHighlighted: data.highlight_ids?.includes(product.id) || false
+                }))
+                .sort((a: Product & {isHighlighted: boolean}, b: Product & {isHighlighted: boolean}) => (b.isHighlighted ? 1 : 0) - (a.isHighlighted ? 1 : 0)) // Highlighted products first
+                .slice(0, 12) // Limit to 12 products for performance
             : [];
 
           // Replace loading message with AI response
@@ -756,13 +819,13 @@ export default function Chat() {
           }, 200);
 
           // Add products as separate message if available
-          if (highlightedProducts.length > 0) {
+          if (allProducts.length > 0) {
             setTimeout(() => {
               const productsMsg = {
                 id: Date.now() + 2,
                 text: '',
                 isUser: false,
-                products: highlightedProducts
+                products: allProducts
               };
               setMsgs(m => [...m, productsMsg]);
               
@@ -998,7 +1061,19 @@ export default function Chat() {
                         >
                           {m.products.map((product: Product) => (
                             /* Individual product card */
-                            <div key={product.id} style={s.productCard}>
+                            <div 
+                              key={product.id} 
+                              className={`product-card${product.isHighlighted ? ' product-card-highlighted' : ''}`}
+                              style={s.productCard}
+                              onClick={() => {
+                                // Send message to parent window to navigate to product URL
+                                const decodedUrl = decodeURIComponent(product.data.URL);
+                                window.parent.postMessage({
+                                  type: 'navigateToProduct',
+                                  url: decodedUrl
+                                }, '*');
+                              }}
+                            >
                               <img 
                                 src={product.data.Bild} 
                                 alt={product.data.Titel}
