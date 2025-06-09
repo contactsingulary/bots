@@ -170,15 +170,67 @@ export default function Chat() {
         const historyMessages: Msg[] = [];
         let currentId = 1; // Start with ID 1, new messages will continue from here
         
-        recentInteractions.forEach((interaction: any) => {
-          console.log('🔍 Processing interaction:', interaction);
+        // ✅ Process router + website + product interactions together for complete conversations
+        const routerInteractions = recentInteractions.filter((interaction: any) => 
+          interaction.labels === "router" && interaction.agent_called === true
+        );
+        
+        const websiteInteractions = recentInteractions.filter((interaction: any) => 
+          interaction.labels === "websites"
+        );
+        
+        const productInteractions = recentInteractions.filter((interaction: any) => 
+          interaction.labels === "products"
+        );
+        
+        console.log(`📋 Found ${routerInteractions.length} router, ${websiteInteractions.length} website, and ${productInteractions.length} product interactions`);
+        
+        routerInteractions.forEach((routerInteraction: any) => {
+          console.log('🔍 Processing router interaction:', routerInteraction);
           
-          // ✅ Enhanced field name extraction - supports all agent types
-          // Try multiple field names used by different agents
-          const userQuestion = interaction.user_query || interaction.question || interaction.user || '';
-          const botResponse = interaction.ai_response || interaction.response || interaction.assistant || '';
+          // ✅ Get user question from router (supports both old and new field names)
+          const userQuestion = routerInteraction.question || routerInteraction.user_query || '';
           
-          console.log('📝 Extracted fields:', { userQuestion, botResponse });
+          // ✅ Find corresponding agent interactions for bot response and products (match by timestamp proximity)
+          const routerTime = new Date(routerInteraction.timestamp).getTime();
+          let correspondingWebsite = null;
+          let correspondingProduct = null;
+          let minWebTimeDiff = Infinity;
+          let minProductTimeDiff = Infinity;
+          
+          // Match website interactions
+          for (const webInteraction of websiteInteractions) {
+            const webTime = new Date(webInteraction.timestamp).getTime();
+            const timeDiff = Math.abs(webTime - routerTime);
+            
+            // Find website interaction within 5 seconds of router interaction
+            if (timeDiff < 5000 && timeDiff < minWebTimeDiff) {
+              minWebTimeDiff = timeDiff;
+              correspondingWebsite = webInteraction;
+            }
+          }
+          
+          // Match product interactions
+          for (const prodInteraction of productInteractions) {
+            const prodTime = new Date(prodInteraction.timestamp).getTime();
+            const timeDiff = Math.abs(prodTime - routerTime);
+            
+            // Find product interaction within 5 seconds of router interaction
+            if (timeDiff < 5000 && timeDiff < minProductTimeDiff) {
+              minProductTimeDiff = timeDiff;
+              correspondingProduct = prodInteraction;
+            }
+          }
+          
+          // Get bot response from either website or product interaction
+          const botResponse = correspondingWebsite?.response || correspondingProduct?.response || '';
+          
+          console.log('📝 Matched fields:', { 
+            userQuestion, 
+            botResponse: botResponse ? 'Found' : 'Not found',
+            webTimeDiff: minWebTimeDiff !== Infinity ? `${minWebTimeDiff}ms` : 'No match',
+            productTimeDiff: minProductTimeDiff !== Infinity ? `${minProductTimeDiff}ms` : 'No match'
+          });
           
           // Add user question
           if (userQuestion && userQuestion.trim()) {
@@ -200,20 +252,29 @@ export default function Chat() {
             console.log('✅ Added bot message:', botResponse);
           }
           
-          // Add products if available (from search_results)
-          const searchResults = interaction.search_results;
-          if (searchResults?.results && searchResults.results.length > 0) {
-            const products = searchResults.results
-              .map((product: Product) => ({
-                ...product,
-                isHighlighted: (interaction.highlight_ids || interaction.highlighted_pages || []).includes(product.id) || false
-              }))
-              .sort((a: Product & {isHighlighted: boolean}, b: Product & {isHighlighted: boolean}) => 
-                (b.isHighlighted ? 1 : 0) - (a.isHighlighted ? 1 : 0)
-              )
-              .slice(0, 12);
+          // ✅ Add products if available from product interaction
+          if (correspondingProduct && correspondingProduct.search_results) {
+            const searchResults = correspondingProduct.search_results;
             
-            if (products.length > 0) {
+            // Handle both direct results array and nested results object
+            let productResults = [];
+            if (Array.isArray(searchResults)) {
+              productResults = searchResults;
+            } else if (searchResults.results && Array.isArray(searchResults.results)) {
+              productResults = searchResults.results;
+            }
+            
+            if (productResults.length > 0) {
+              const products = productResults
+                .map((product: Product) => ({
+                  ...product,
+                  isHighlighted: (correspondingProduct.highlight_ids || []).includes(product.id) || false
+                }))
+                .sort((a: Product & {isHighlighted: boolean}, b: Product & {isHighlighted: boolean}) => 
+                  (b.isHighlighted ? 1 : 0) - (a.isHighlighted ? 1 : 0)
+                )
+                .slice(0, 12); // Limit to 12 products for performance
+              
               historyMessages.push({
                 id: currentId++,
                 text: '',
