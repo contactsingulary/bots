@@ -127,10 +127,6 @@ export default function Chat() {
   const [historyLoaded, setHistoryLoaded] = useState(false);     // Prevent duplicate loading
   const [isLoadingHistory, setIsLoadingHistory] = useState(false); // Loading indicator
   
-  // ✅ Request management for race condition prevention
-  const activeRequests = useRef<Map<string, AbortController>>(new Map()); // Track active API calls
-  const currentSessionRef = useRef<string | null>(null); // Session validation reference
-  
   // Message ID counter for unique keys (using ref for immediate updates)
   const messageIdCounter = useRef(1);
   
@@ -161,39 +157,56 @@ export default function Chat() {
       const response = await fetch(`/api/memory?session_id=${currentSessionId}&user_id=${currentUserId}`);
       const data = await response.json();
       
+      console.log('📊 Memory API response:', data);
+      
       if (data.success && data.memory && data.memory.length > 0) {
+        console.log(`🔍 Found ${data.memory.length} total interactions in memory`);
+        
         // Get the last 5 interactions (conversations)
         const recentInteractions = data.memory.slice(-5);
+        console.log('📋 Processing', recentInteractions.length, 'recent interactions');
         
         // Convert interactions to chat messages
         const historyMessages: Msg[] = [];
         let currentId = 1; // Start with ID 1, new messages will continue from here
         
         recentInteractions.forEach((interaction: any) => {
+          console.log('🔍 Processing interaction:', interaction);
+          
+          // ✅ Enhanced field name extraction - supports all agent types
+          // Try multiple field names used by different agents
+          const userQuestion = interaction.user_query || interaction.question || interaction.user || '';
+          const botResponse = interaction.ai_response || interaction.response || interaction.assistant || '';
+          
+          console.log('📝 Extracted fields:', { userQuestion, botResponse });
+          
           // Add user question
-          if (interaction.question) {
+          if (userQuestion && userQuestion.trim()) {
             historyMessages.push({
               id: currentId++,
-              text: interaction.question,
+              text: userQuestion,
               isUser: true
             });
+            console.log('✅ Added user message:', userQuestion);
           }
           
-          // Add bot response
-          if (interaction.response) {
+          // Add bot response  
+          if (botResponse && botResponse.trim()) {
             historyMessages.push({
               id: currentId++,
-              text: interaction.response,
+              text: botResponse,
               isUser: false
             });
+            console.log('✅ Added bot message:', botResponse);
           }
           
           // Add products if available (from search_results)
-          if (interaction.search_results?.results && interaction.search_results.results.length > 0) {
-            const products = interaction.search_results.results
+          const searchResults = interaction.search_results;
+          if (searchResults?.results && searchResults.results.length > 0) {
+            const products = searchResults.results
               .map((product: Product) => ({
                 ...product,
-                isHighlighted: interaction.highlight_ids?.includes(product.id) || false
+                isHighlighted: (interaction.highlight_ids || interaction.highlighted_pages || []).includes(product.id) || false
               }))
               .sort((a: Product & {isHighlighted: boolean}, b: Product & {isHighlighted: boolean}) => 
                 (b.isHighlighted ? 1 : 0) - (a.isHighlighted ? 1 : 0)
@@ -207,6 +220,7 @@ export default function Chat() {
                 isUser: false,
                 products: products
               });
+              console.log('✅ Added products message:', products.length, 'products');
             }
           }
         });
@@ -215,16 +229,19 @@ export default function Chat() {
         setMsgs(historyMessages);
         messageIdCounter.current = currentId; // Set counter to continue from where history ended
         
-        console.log(`Loaded ${recentInteractions.length} conversations (${historyMessages.length} messages)`);
+        console.log(`✅ Successfully loaded ${recentInteractions.length} conversations (${historyMessages.length} messages)`);
+        console.log('📋 History messages:', historyMessages);
       } else {
-        console.log('No chat history found or session does not exist');
+        console.log('ℹ️ No chat history found or session does not exist');
+        console.log('📊 Memory API returned:', { success: data.success, memoryLength: data.memory?.length || 0 });
       }
       
     } catch (error) {
-      console.error('Failed to load chat history:', error);
+      console.error('❌ Failed to load chat history:', error);
     } finally {
       setIsLoadingHistory(false);
       setHistoryLoaded(true);
+      console.log('🏁 Chat history loading completed');
     }
   };
 
@@ -279,42 +296,6 @@ export default function Chat() {
   // === EFFECT HOOKS ===
   // ===============================================
   
-  // ✅ Request Management Utility Functions (defined before useEffect hooks)
-  const cancelAllActiveRequests = () => {
-    console.log('🚫 Cancelling all active API requests');
-    activeRequests.current.forEach((controller, requestId) => {
-      console.log(`  ↳ Aborting request: ${requestId}`);
-      controller.abort();
-    });
-    activeRequests.current.clear();
-  };
-  
-  const isValidSession = (requestSessionId: string | null) => {
-    const isValid = requestSessionId === currentSessionRef.current && currentSessionRef.current !== null;
-    if (!isValid) {
-      console.log('⚠️ Invalid session detected:', { 
-        requestSessionId, 
-        currentSession: currentSessionRef.current,
-        isValid 
-      });
-    }
-    return isValid;
-  };
-  
-  // Update session reference when session changes
-  useEffect(() => {
-    currentSessionRef.current = sessionId;
-    console.log('🔄 Session reference updated:', sessionId);
-  }, [sessionId]);
-  
-  // ✅ Cleanup function - cancel all requests when component unmounts
-  useEffect(() => {
-    return () => {
-      console.log('🧹 Component unmounting - cleaning up active requests');
-      cancelAllActiveRequests();
-    };
-  }, []);
-  
   // Cleanup loading animations when component unmounts
   useEffect(() => {
     return () => {
@@ -359,14 +340,6 @@ export default function Chat() {
           console.log('✅ Consent modal shown with new key:', consentKey + 1);
         }, 50);
       } else if (event.data?.type === 'resetChat') {
-        console.log('🔄 Received resetChat - performing enhanced reset');
-        
-        // ✅ Cancel all active requests immediately
-        cancelAllActiveRequests();
-        
-        // ✅ Invalidate session to prevent late responses
-        currentSessionRef.current = null;
-        
         // Clear all messages when consent is revoked
         setMsgs([]);
         setCarouselStates({});
@@ -389,8 +362,6 @@ export default function Chat() {
         // ✅ Clear session IDs to ensure clean state
         setSessionId(null);
         setUserId(null);
-        
-        console.log('✅ Enhanced resetChat complete - all requests cancelled');
       } else if (event.data?.type === 'getScrollPosition') {
         // Don't capture scroll position - we'll scroll to bottom instead
         window.parent.postMessage({
@@ -907,15 +878,7 @@ export default function Chat() {
 
   // Handle user rejecting consent (clear all data and reset chat)
   const handleConsentReject = () => {
-    console.log('❌ User rejected consent - performing enhanced cleanup');
-    
     setShowConsent(false);
-    
-    // ✅ Cancel all active API requests to prevent race conditions
-    cancelAllActiveRequests();
-    
-    // ✅ Invalidate current session immediately
-    currentSessionRef.current = null;
     
     // Clear all messages and state - complete reset
     setMsgs([]);
@@ -936,8 +899,6 @@ export default function Chat() {
     
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
-    
-    console.log('✅ Enhanced consent rejection cleanup complete');
   };
 
   // Show consent dialog if user doesn't have consent
@@ -999,25 +960,12 @@ export default function Chat() {
         const currentSessionId = sessionId || e.data.sessionId;
         const currentUserId = userId || e.data.userId;
         
-        // ✅ Session validation - only proceed if we have valid consent
-        if (!currentSessionId || !isValidSession(currentSessionId)) {
-          console.log('⚠️ Ignoring search request - invalid session or no consent');
-          return;
-        }
-        
         // Generate unique message IDs using counter
         const userMsgId = messageIdCounter.current;
         const loadingMsgId = messageIdCounter.current + 1;
         
         // Update counter for next messages
         messageIdCounter.current += 2;
-        
-        // ✅ Create unique request ID for this API call
-        const requestId = `search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const abortController = new AbortController();
-        activeRequests.current.set(requestId, abortController);
-        
-        console.log(`🚀 Starting API request: ${requestId} for session: ${currentSessionId}`);
         
         // Add user message immediately
         const userMsg = {id: userMsgId, text: e.data.text, isUser: true};
@@ -1028,7 +976,7 @@ export default function Chat() {
         setMsgs(m => [...m, loadingMsg]);
         startLoadingAnimation(loadingMsgId);
         
-        // ✅ Enhanced API call with AbortController and session validation
+        // Call the chat API with session ID and user ID
         fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -1040,31 +988,10 @@ export default function Chat() {
             ranked_limit: 10,
             session_id: currentSessionId,
             user_id: currentUserId
-          }),
-          signal: abortController.signal  // ✅ Enable request cancellation
+          })
         })
-        .then(response => {
-          // ✅ Remove completed request from tracking
-          activeRequests.current.delete(requestId);
-          
-          // ✅ Validate session before processing response
-          if (!isValidSession(currentSessionId)) {
-            console.log(`🚫 Discarding response for ${requestId} - session invalidated`);
-            stopLoadingAnimation(loadingMsgId);
-            return Promise.reject(new Error('Session invalidated'));
-          }
-          
-          console.log(`✅ Response received for ${requestId} - session valid`);
-          return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-          // ✅ Double-check session validity before updating UI
-          if (!isValidSession(currentSessionId)) {
-            console.log(`🚫 Discarding response data for ${requestId} - session invalidated during processing`);
-            stopLoadingAnimation(loadingMsgId);
-            return;
-          }
-          
           // Stop loading animation
           stopLoadingAnimation(loadingMsgId);
           
@@ -1101,15 +1028,9 @@ export default function Chat() {
             }, 1200);
           }, 200);
 
-          // ✅ Session validation before adding products
-          if (allProducts.length > 0 && isValidSession(currentSessionId)) {
+          // Add products as separate message if available
+          if (allProducts.length > 0) {
             setTimeout(() => {
-              // ✅ Final session check before showing products
-              if (!isValidSession(currentSessionId)) {
-                console.log(`🚫 Not adding products for ${requestId} - session invalidated`);
-                return;
-              }
-              
               // Generate unique ID for products message
               const productsMsgId = messageIdCounter.current;
               messageIdCounter.current += 1;
@@ -1122,8 +1043,6 @@ export default function Chat() {
               };
               setMsgs(m => [...m, productsMsg]);
               
-              console.log(`✅ Products added for ${requestId} - ${allProducts.length} items`);
-              
               // Trigger avatar jump for product message
               setTimeout(() => {
                 setJumpingAvatars(prev => ({...prev, [productsMsgId]: true}));
@@ -1135,24 +1054,7 @@ export default function Chat() {
           }
         })
         .catch(error => {
-          // ✅ Clean up request tracking
-          activeRequests.current.delete(requestId);
-          
-          // ✅ Handle aborted requests gracefully (user rejected consent)
-          if (error.name === 'AbortError') {
-            console.log(`🚫 Request ${requestId} was aborted (user likely rejected consent)`);
-            stopLoadingAnimation(loadingMsgId);
-            return; // Don't show error message for intentional cancellations
-          }
-          
-          // ✅ Check session validity before showing error
-          if (!isValidSession(currentSessionId)) {
-            console.log(`🚫 Not showing error for ${requestId} - session invalidated`);
-            stopLoadingAnimation(loadingMsgId);
-            return;
-          }
-          
-          console.error(`❌ API error for ${requestId}:`, error);
+          console.error('Chat API error:', error);
           
           // Stop loading animation on error
           stopLoadingAnimation(loadingMsgId);
