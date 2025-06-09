@@ -311,9 +311,43 @@ export default function Chat() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'consentUpdate') {
+        const newSessionId = event.data.sessionId;
+        const newUserId = event.data.userId;
+        const wasConsentChange = sessionId !== newSessionId || userId !== newUserId;
+        
+        console.log('🔄 Consent update received:', { 
+          old: { sessionId, userId, hasConsent }, 
+          new: { sessionId: newSessionId, userId: newUserId, hasConsent: event.data.hasConsent },
+          wasConsentChange 
+        });
+        
+        // ✅ If session IDs changed, we have a fresh start - reset everything
+        if (wasConsentChange && newSessionId && newUserId) {
+          console.log('🆕 New session detected - resetting chat state');
+          
+          // Clear all existing messages and state
+          setMsgs([]);
+          setCarouselStates({});
+          setJumpingAvatars({});
+          
+          // Stop all loading animations
+          Object.values(loadingMessages).forEach(state => {
+            if (state.interval) {
+              clearInterval(state.interval);
+            }
+          });
+          setLoadingMessages({});
+          
+          // Reset history loading flags for new session
+          setHistoryLoaded(false);
+          setIsLoadingHistory(false);
+          messageIdCounter.current = 1;
+        }
+        
+        // Update consent and session state
         setHasConsent(event.data.hasConsent);
-        setSessionId(event.data.sessionId);
-        setUserId(event.data.userId);
+        setSessionId(newSessionId);
+        setUserId(newUserId);
       } else if (event.data?.type === 'mobileInputFocus') {
         // On mobile, when input is focused, scroll to show latest messages
         if (isMobile && msgListRef.current) {
@@ -327,8 +361,26 @@ export default function Chat() {
           }, 300); // Delay to account for keyboard animation
         }
       } else if (event.data?.type === 'showConsent') {
-        // ✅ Enhanced consent modal showing with better state management
+        // ✅ Enhanced consent modal showing with complete state reset
         console.log('📋 Parent requested consent modal - current state:', { showConsent, hasConsent, consentKey });
+        
+        // ✅ SOFORT alle Nachrichten und State löschen, bevor Modal erscheint
+        setMsgs([]);
+        setCarouselStates({});
+        setJumpingAvatars({});
+        
+        // Stop all loading animations
+        Object.values(loadingMessages).forEach(state => {
+          if (state.interval) {
+            clearInterval(state.interval);
+          }
+        });
+        setLoadingMessages({});
+        
+        // Reset history loading state and message counter
+        setHistoryLoaded(false);
+        setIsLoadingHistory(false);
+        messageIdCounter.current = 1;
         
         // Force clean state before showing consent
         setShowConsent(false);
@@ -337,7 +389,7 @@ export default function Chat() {
         setTimeout(() => {
           setConsentKey(prev => prev + 1);
           setShowConsent(true);
-          console.log('✅ Consent modal shown with new key:', consentKey + 1);
+          console.log('✅ Consent modal shown with new key and clean state:', consentKey + 1);
         }, 50);
       } else if (event.data?.type === 'resetChat') {
         // Clear all messages when consent is revoked
@@ -398,9 +450,10 @@ export default function Chat() {
 
   // Load chat history when session IDs are available
   useEffect(() => {
-    console.log('History loading check:', { hasConsent, sessionId, userId, historyLoaded, isLoadingHistory });
+    console.log('History loading check:', { hasConsent, sessionId, userId, historyLoaded, isLoadingHistory, showConsent });
     
-    if (hasConsent && sessionId && userId && !historyLoaded && !isLoadingHistory) {
+    // ✅ WICHTIG: Nicht laden wenn Consent-Modal sichtbar ist
+    if (hasConsent && sessionId && userId && !historyLoaded && !isLoadingHistory && !showConsent) {
       console.log('✅ Loading chat history for session:', sessionId, 'user:', userId);
       loadChatHistory(sessionId, userId);
     } else {
@@ -409,8 +462,9 @@ export default function Chat() {
       if (!userId) console.log('❌ No user ID yet');
       if (historyLoaded) console.log('ℹ️ History already loaded');
       if (isLoadingHistory) console.log('⏳ Currently loading history');
+      if (showConsent) console.log('🚫 Consent modal visible - not loading history');
     }
-  }, [hasConsent, sessionId, userId, historyLoaded, isLoadingHistory]);
+  }, [hasConsent, sessionId, userId, historyLoaded, isLoadingHistory, showConsent]);
 
   // Inject CSS styles for animations and responsive design
   useEffect(() => {
@@ -878,13 +932,14 @@ export default function Chat() {
 
   // Handle user rejecting consent (clear all data and reset chat)
   const handleConsentReject = () => {
-    setShowConsent(false);
+    console.log('❌ User clicked Ablehnen - immediate cleanup');
     
-    // Clear all messages and state - complete reset
+    // ✅ SOFORT alle Nachrichten und State löschen beim Ablehnen-Klick
     setMsgs([]);
     setCarouselStates({});
     setJumpingAvatars({});
-    // Stop all loading animations
+    
+    // Stop all loading animations immediately
     Object.values(loadingMessages).forEach(state => {
       if (state.interval) {
         clearInterval(state.interval);
@@ -892,10 +947,25 @@ export default function Chat() {
     });
     setLoadingMessages({});
     
-    // Reset consent key after modal is hidden to ensure clean state
+    // Reset consent modal and all related state
+    setShowConsent(false);
+    setHasConsent(false);
+    
+    // Reset history loading state and message counter
+    setHistoryLoaded(false);
+    setIsLoadingHistory(false);
+    messageIdCounter.current = 1;
+    
+    // Reset session IDs immediately
+    setSessionId(null);
+    setUserId(null);
+    
+    // Reset consent key for clean state on next open
     setTimeout(() => {
       setConsentKey(prev => prev + 1);
     }, 100);
+    
+    console.log('✅ All state cleaned up - notifying parent');
     
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
@@ -992,6 +1062,13 @@ export default function Chat() {
         })
         .then(response => response.json())
         .then(data => {
+          // ✅ CONSENT-CHECK: Blockiere Response wenn kein Consent mehr vorhanden
+          if (!hasConsent) {
+            console.log('🚫 API response blocked - no consent');
+            stopLoadingAnimation(loadingMsgId);
+            return; // Früher Ausstieg - keine weitere Verarbeitung
+          }
+          
           // Stop loading animation
           stopLoadingAnimation(loadingMsgId);
           
@@ -1031,6 +1108,12 @@ export default function Chat() {
           // Add products as separate message if available
           if (allProducts.length > 0) {
             setTimeout(() => {
+              // ✅ CONSENT-CHECK: Blockiere Produkt-Message wenn kein Consent mehr vorhanden
+              if (!hasConsent) {
+                console.log('🚫 Product message blocked - no consent');
+                return; // Keine Produkte anzeigen
+              }
+              
               // Generate unique ID for products message
               const productsMsgId = messageIdCounter.current;
               messageIdCounter.current += 1;
@@ -1055,6 +1138,13 @@ export default function Chat() {
         })
         .catch(error => {
           console.error('Chat API error:', error);
+          
+          // ✅ CONSENT-CHECK: Blockiere Error-Response wenn kein Consent mehr vorhanden
+          if (!hasConsent) {
+            console.log('🚫 API error response blocked - no consent');
+            stopLoadingAnimation(loadingMsgId);
+            return; // Früher Ausstieg - keine Error-Message anzeigen
+          }
           
           // Stop loading animation on error
           stopLoadingAnimation(loadingMsgId);
