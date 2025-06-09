@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL || 'http://agent_dev:8000';
+const ROUTER_SERVICE_URL = process.env.ROUTER_SERVICE_URL || 'http://agent_router_dev:8000';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,40 +33,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the agent service with session history
-    const agentUrl = `${AGENT_SERVICE_URL}/chat-with-history`;
+    // Call the router service first to get routing decision and agent response
+    const routerUrl = `${ROUTER_SERVICE_URL}/router`;
     const params = new URLSearchParams({
       question: message,
       session_id: session_id,
       user_id: user_id,
-      search_limit: search_limit.toString(),
-      ranked_limit: ranked_limit.toString(),
     });
 
-    const agentResponse = await fetch(`${agentUrl}?${params}`, {
+    const routerResponse = await fetch(`${routerUrl}?${params}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
       },
     });
 
-    if (!agentResponse.ok) {
-      throw new Error(`Agent service error: ${agentResponse.status}`);
+    if (!routerResponse.ok) {
+      throw new Error(`Router service error: ${routerResponse.status}`);
     }
 
-    const agentData = await agentResponse.json();
+    const routerData = await routerResponse.json();
 
-    // Transform the response for the frontend
+    // Check if router successfully called an agent
+    if (!routerData.agent?.success) {
+      return NextResponse.json({
+        success: false,
+        error: 'Agent service unavailable',
+        response: 'Entschuldigung, der Service ist momentan nicht verfügbar. Bitte versuchen Sie es später erneut.',
+        router_info: {
+          route: routerData.router?.route || 'unknown',
+          confidence: routerData.router?.confidence || 0,
+          reasoning: routerData.router?.reasoning || 'Unknown routing error'
+        }
+      }, { status: 503 });
+    }
+
+    // Extract agent response data
+    const agentData = routerData.agent.agent_response;
+
+    // Transform the response for the frontend - maintaining compatibility
     return NextResponse.json({
       success: true,
       response: agentData.response || 'Entschuldigung, ich konnte keine passende Antwort finden.',
       search_results: agentData.search_results || null,
-      highlight_ids: agentData.highlight_ids || [],
+      highlight_ids: agentData.highlighted_pages || [],
       assessment: agentData.assessment || '',
       count: agentData.count || 0,
-      session_id: agentData.session_id,
-      user_id: agentData.user_id,
-      session_exists: agentData.session_exists || false
+      session_id: agentData.session_id || session_id,
+      user_id: agentData.user_id || user_id,
+      session_exists: agentData.session_exists || false,
+      // Additional router information
+      router_info: {
+        route: routerData.router.route,
+        confidence: routerData.router.confidence,
+        reasoning: routerData.router.reasoning,
+        extracted_entities: routerData.router.extracted_entities || [],
+        enhanced_question: routerData.router.enhanced_question,
+        original_question: routerData.router.original_question
+      }
     });
 
   } catch (error) {
@@ -83,14 +107,14 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   // Basic API status endpoint
   return NextResponse.json({
-    message: 'Chat API is running',
-    agent_url: AGENT_SERVICE_URL,
+    message: 'Chat API is running with Router',
+    router_url: ROUTER_SERVICE_URL,
     features: [
-      'Chat with session history',
-      'Vector similarity search', 
-      'BM25 text matching',
-      'AI-powered product recommendations',
-      'Automatic session management'
+      'Intelligent question routing',
+      'Product vs General classification', 
+      'Entity extraction and enhancement',
+      'Automatic agent selection',
+      'Session management across agents'
     ]
   });
 } 
