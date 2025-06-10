@@ -1,28 +1,35 @@
-import { NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
-import { minify } from 'terser';
+import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const filePath = resolve(process.cwd(), 'lib/inject.js');
+    // Read the inject.js file
+    const injectPath = path.join(process.cwd(), 'lib', 'inject.js');
+    let injectContent = fs.readFileSync(injectPath, 'utf8');
     
-    const fileContent = readFileSync(filePath, 'utf-8');
-    const result = await minify(fileContent, { 
-      compress: true, 
-      mangle: true 
-    });
-        
-    return new NextResponse(result.code || fileContent, {
+    // Get the origin URL from environment variable
+    const originUrl = process.env.NEXT_PUBLIC_ORIGIN_URL;
+    
+    // Replace the placeholder with the environment variable value
+    injectContent = injectContent.replace(
+      "origin: '__ORIGIN_URL__',",
+      `origin: '${originUrl}',`
+    );
+    
+    // Return the modified JavaScript with correct content type
+    return new NextResponse(injectContent, {
       headers: {
         'Content-Type': 'application/javascript',
-        'Cache-Control': 'no-store, no-cache, must-revalidate',
-        'Pragma': 'no-cache',
-        'Access-Control-Allow-Origin': '*'
-      }
+        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+      },
     });
   } catch (error) {
-    return new NextResponse('Error serving script', { status: 500 });
+    console.error('Error serving inject.js:', error);
+    return NextResponse.json(
+      { error: 'Failed to load inject script' },
+      { status: 500 }
+    );
   }
 }
 
