@@ -1075,9 +1075,29 @@ export default function Chat() {
           setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
         }, 100); // Small delay to ensure message is rendered
         
-        // Get agent_id from window.embedApp.config
+        // Get agent_id from window.embedApp.config with fallback check
         const embedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
-        const agentId = embedApp?.config?.agent_id || 'default';
+        let agentId = embedApp?.config?.agent_id;
+        
+        // If no agent_id found, wait a bit and try again (race condition fix)
+        if (!agentId || agentId === 'default') {
+          console.warn('⚠️ No agent_id found, checking again in 100ms...');
+          setTimeout(() => {
+            const retryEmbedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
+            console.log('🔄 Retry check:', retryEmbedApp?.config);
+          }, 100);
+        }
+        
+        agentId = agentId || 'default';
+        
+        // Debug logging
+        console.log('🔍 Debug agent_id:', {
+          embedApp: embedApp,
+          config: embedApp?.config,
+          agent_id: embedApp?.config?.agent_id,
+          finalAgentId: agentId,
+          timestamp: new Date().toISOString()
+        });
         
         // Call the chat API with session ID, user ID, and agent ID
         fetch('/api/chat', {
