@@ -1075,29 +1075,42 @@ export default function Chat() {
           setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
         }, 100); // Small delay to ensure message is rendered
         
-        // Get agent_id from window.embedApp.config with fallback check
-        const embedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
-        let agentId = embedApp?.config?.agent_id;
+        // Wait for config to be available before proceeding
+        const waitForConfig = (): Promise<string> => {
+          return new Promise((resolve) => {
+            const checkConfig = () => {
+              const embedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
+              const agentId = embedApp?.config?.agent_id;
+              
+              console.log('🔍 Checking config:', {
+                embedApp: !!embedApp,
+                config: !!embedApp?.config,
+                agent_id: agentId,
+                timestamp: new Date().toISOString()
+              });
+              
+              if (agentId && agentId !== 'default') {
+                console.log('✅ Config loaded with agent_id:', agentId);
+                resolve(agentId);
+              } else {
+                console.log('⏳ Config not ready, retrying in 50ms...');
+                setTimeout(checkConfig, 50);
+              }
+            };
+            
+            // Start checking immediately
+            checkConfig();
+            
+            // Fallback after 2 seconds
+            setTimeout(() => {
+              console.warn('⚠️ Config timeout, using default agent_id');
+              resolve('default');
+            }, 2000);
+          });
+        };
         
-        // If no agent_id found, wait a bit and try again (race condition fix)
-        if (!agentId || agentId === 'default') {
-          console.warn('⚠️ No agent_id found, checking again in 100ms...');
-          setTimeout(() => {
-            const retryEmbedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
-            console.log('🔄 Retry check:', retryEmbedApp?.config);
-          }, 100);
-        }
-        
-        agentId = agentId || 'default';
-        
-        // Debug logging
-        console.log('🔍 Debug agent_id:', {
-          embedApp: embedApp,
-          config: embedApp?.config,
-          agent_id: embedApp?.config?.agent_id,
-          finalAgentId: agentId,
-          timestamp: new Date().toISOString()
-        });
+        // Use the config waiting logic
+        waitForConfig().then((agentId) => {
         
         // Call the chat API with session ID, user ID, and agent ID
         fetch('/api/chat', {
@@ -1230,6 +1243,7 @@ export default function Chat() {
           setIsProcessing(false);
 
         });
+        }); // Close the waitForConfig().then()
       }
     };
     
