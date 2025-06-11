@@ -1076,7 +1076,8 @@ export default function Chat() {
         }, 100); // Small delay to ensure message is rendered
         
         // Get agent_id from window.embedApp.config
-        const agentId = (window as any).embedApp?.config?.agent_id || 'default';
+        const embedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
+        const agentId = embedApp?.config?.agent_id || 'default';
         
         // Call the chat API with session ID, user ID, and agent ID
         fetch('/api/chat', {
