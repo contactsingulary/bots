@@ -1075,42 +1075,14 @@ export default function Chat() {
           setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
         }, 100); // Small delay to ensure message is rendered
         
-        // Wait for config to be available before proceeding
-        const waitForConfig = (): Promise<string> => {
-          return new Promise((resolve) => {
-            const checkConfig = () => {
-              const embedApp = (window as Window & { embedApp?: { config?: { agent_id?: string } } }).embedApp;
-              const agentId = embedApp?.config?.agent_id;
-              
-              console.log('🔍 Checking config:', {
-                embedApp: !!embedApp,
-                config: !!embedApp?.config,
-                agent_id: agentId,
-                timestamp: new Date().toISOString()
-              });
-              
-              if (agentId && agentId !== 'default') {
-                console.log('✅ Config loaded with agent_id:', agentId);
-                resolve(agentId);
-              } else {
-                console.log('⏳ Config not ready, retrying in 50ms...');
-                setTimeout(checkConfig, 50);
-              }
-            };
-            
-            // Start checking immediately
-            checkConfig();
-            
-            // Fallback after 2 seconds
-            setTimeout(() => {
-              console.warn('⚠️ Config timeout, using default agent_id');
-              resolve('default');
-            }, 2000);
-          });
-        };
+        // Get agent_id from parent message or use default
+        const agentId = e.data.agent_id || 'default';
         
-        // Use the config waiting logic
-        waitForConfig().then((agentId) => {
+        if (agentId && agentId !== 'default') {
+          console.log('✅ Using agent_id from parent:', agentId);
+        } else {
+          console.log('⚠️ No agent_id from parent, using default');
+        }
         
         // Call the chat API with session ID, user ID, and agent ID
         fetch('/api/chat', {
@@ -1243,7 +1215,6 @@ export default function Chat() {
           setIsProcessing(false);
 
         });
-        }); // Close the waitForConfig().then()
       }
     };
     
