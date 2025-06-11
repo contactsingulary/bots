@@ -1,6 +1,7 @@
 'use client';
-import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
+import Image from 'next/image';
 
 // ===============================================
 // === TYPE DEFINITIONS ===
@@ -14,10 +15,10 @@ type Product = {
     Zoll: string;
     Marke: string;
     URL: string;
-    [key: string]: any;
+    [key: string]: string | number | boolean | null | undefined;
   };
   isHighlighted?: boolean;
-  [key: string]: any;
+  [key: string]: string | number | boolean | object | null | undefined;
 }
 
 // Define what a chat message looks like
@@ -148,7 +149,7 @@ export default function Chat() {
   // ===============================================
   
   // Load previous conversations from memory API
-  const loadChatHistory = async (currentSessionId: string, currentWebUserId: string) => {
+  const loadChatHistory = useCallback(async (currentSessionId: string, currentWebUserId: string) => {
     if (historyLoaded || isLoadingHistory || !currentSessionId || !currentWebUserId) {
       return;
     }
@@ -171,7 +172,11 @@ export default function Chat() {
         const routerInteractions = recentInteractions.filter((interaction: {
           labels?: string;
           agent_called?: boolean;
-          agent_response?: any;
+          agent_response?: {
+            response?: string;
+            search_results?: Product[] | { results?: Product[] };
+            highlight_ids?: string[];
+          };
         }) => 
           interaction.labels === "router" && 
           interaction.agent_called === true &&
@@ -182,7 +187,7 @@ export default function Chat() {
           question?: string;
           agent_response?: {
             response?: string;
-            search_results?: any;
+            search_results?: Product[] | { results?: Product[] };
             highlight_ids?: string[];
           };
         }) => {
@@ -252,21 +257,21 @@ export default function Chat() {
       } else {
       }
       
-    } catch (error) {
+    } catch {
     } finally {
       setIsLoadingHistory(false);
       setHistoryLoaded(true);
     }
-  };
+  }, [historyLoaded, isLoadingHistory]);
 
   // ===============================================
   // === LOADING ANIMATION SYSTEM ===
   // ===============================================
   // German phrases that cycle during API loading
-  const loadingPhrases = ['ich schaue für Sie nach...', 'Lassen Sie mich überlegen...', 'Ich organisiere...', 'Ich suche für Sie...', 'Einen Moment bitte...'];
+  const loadingPhrases = useMemo(() => ['ich schaue für Sie nach...', 'Lassen Sie mich überlegen...', 'Ich organisiere...', 'Ich suche für Sie...', 'Einen Moment bitte...'], []);
 
   // Start the loading animation for a specific message
-  const startLoadingAnimation = (messageId: number) => {
+  const startLoadingAnimation = useCallback((messageId: number) => {
     let currentPhrase = 0;
     
     const interval = setInterval(() => {
@@ -290,10 +295,10 @@ export default function Chat() {
       ...prev,
       [messageId]: { currentPhrase: 0, interval }
     }));
-  };
+  }, [loadingPhrases]);
 
   // Stop the loading animation and clean up
-  const stopLoadingAnimation = (messageId: number) => {
+  const stopLoadingAnimation = useCallback((messageId: number) => {
     const loadingState = loadingMessages[messageId];
     if (loadingState?.interval) {
       clearInterval(loadingState.interval);
@@ -304,7 +309,7 @@ export default function Chat() {
       delete newState[messageId];
       return newState;
     });
-  };
+  }, [loadingMessages]);
 
   // ===============================================
   // === EFFECT HOOKS ===
@@ -843,8 +848,8 @@ export default function Chat() {
             const isAtTop = target.scrollTop === 0;
             const isAtBottom = target.scrollTop + target.clientHeight >= target.scrollHeight;
             
-            if ((isAtTop && e.touches[0].clientY > (e as any).lastY) || 
-                (isAtBottom && e.touches[0].clientY < (e as any).lastY)) {
+            if ((isAtTop && e.touches[0].clientY > ((e as TouchEvent & { lastY?: number }).lastY || 0)) || 
+                (isAtBottom && e.touches[0].clientY < ((e as TouchEvent & { lastY?: number }).lastY || 0))) {
               e.preventDefault();
             }
             return;
@@ -861,7 +866,7 @@ export default function Chat() {
     // Track touch position for boundary detection
     const trackTouch = (e: TouchEvent) => {
       if (e.touches.length > 0) {
-        (e as any).lastY = e.touches[0].clientY;
+        (e as TouchEvent & { lastY?: number }).lastY = e.touches[0].clientY;
       }
     };
     
@@ -873,7 +878,7 @@ export default function Chat() {
       // Lock container styles
       containerRef.current.style.overflow = 'hidden';
       containerRef.current.style.touchAction = 'none';
-      (containerRef.current.style as any).webkitOverflowScrolling = 'none';
+      (containerRef.current.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = 'none';
       containerRef.current.style.overscrollBehavior = 'none';
       containerRef.current.style.position = 'fixed';
       containerRef.current.style.width = '100%';
@@ -883,7 +888,7 @@ export default function Chat() {
     // Allow scrolling on the message list
     if (msgListRef.current) {
       msgListRef.current.style.touchAction = 'pan-y';
-      (msgListRef.current.style as any).webkitOverflowScrolling = 'touch';
+      (msgListRef.current.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = 'touch';
       msgListRef.current.style.overscrollBehavior = 'contain';
       msgListRef.current.style.overflowY = 'auto';
       msgListRef.current.style.overflowX = 'hidden';
@@ -893,16 +898,17 @@ export default function Chat() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
       
-      if (containerRef.current) {
-        containerRef.current.removeEventListener('touchstart', trackTouch);
-        containerRef.current.removeEventListener('touchmove', preventContainerScroll);
-        containerRef.current.style.overflow = '';
-        containerRef.current.style.touchAction = '';
-        (containerRef.current.style as any).webkitOverflowScrolling = '';
-        containerRef.current.style.overscrollBehavior = '';
-        containerRef.current.style.position = '';
-        containerRef.current.style.width = '';
-        containerRef.current.style.height = '';
+      const currentContainer = containerRef.current;
+      if (currentContainer) {
+        currentContainer.removeEventListener('touchstart', trackTouch);
+        currentContainer.removeEventListener('touchmove', preventContainerScroll);
+        currentContainer.style.overflow = '';
+        currentContainer.style.touchAction = '';
+        (currentContainer.style as CSSStyleDeclaration & { webkitOverflowScrolling?: string }).webkitOverflowScrolling = '';
+        currentContainer.style.overscrollBehavior = '';
+        currentContainer.style.position = '';
+        currentContainer.style.width = '';
+        currentContainer.style.height = '';
       }
     };
   }, [isMobile]);
@@ -1353,9 +1359,11 @@ export default function Chat() {
                   <>
                     {/* Show avatar for bot messages */}
                     {shouldShowAvatar ? (
-                      <img 
+                      <Image 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
+                        width={18}
+                        height={18}
                         style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
                       />
                     ) : (
@@ -1418,9 +1426,11 @@ export default function Chat() {
                   <>
                     {/* Show avatar for bot messages on the left */}
                     {shouldShowAvatar ? (
-                      <img 
+                      <Image 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
+                        width={18}
+                        height={18}
                         style={jumpingAvatars[m.id] ? s.avatarJump : s.avatar}
                       />
                     ) : (
@@ -1471,9 +1481,11 @@ export default function Chat() {
                                 }, '*');
                               }}
                             >
-                              <img 
+                              <Image 
                                 src={product.data.Bild} 
                                 alt={product.data.Titel}
+                                width={100}
+                                height={60}
                                 style={s.productImage}
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';

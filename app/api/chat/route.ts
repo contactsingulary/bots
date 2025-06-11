@@ -8,9 +8,7 @@ export async function POST(request: NextRequest) {
     const { 
       message, 
       session_id, 
-      web_user_id, 
-      search_limit = 50, 
-      ranked_limit = 10 
+      web_user_id
     } = await request.json();
     
     if (!message || typeof message !== 'string') {
