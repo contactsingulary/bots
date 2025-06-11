@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 // ===============================================
 // === TYPE DEFINITIONS ===
@@ -28,7 +29,7 @@ type Msg = {id: number; text: string; isUser: boolean; products?: Product[]; isL
 // All component styles in one place for easy maintenance
 const s = {
   // Main container styles
-  container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(2px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const},
+  container: {display:'flex', flexDirection:'column' as const, height:'100vh', background:'rgba(255,255,255,0.28)', backgroundImage:'radial-gradient(circle, rgba(136,136,136,0.35) 0.8px, transparent 0.8px)', backgroundSize:'5px 5px', backdropFilter:'blur(3px)', overflow:'hidden', fontFamily:'system-ui', borderRadius:'20px', position:'relative' as const, boxShadow:'inset 0 0 30px rgba(0,0,0,0.2), inset 0 0 50px rgba(0,0,0,0.12)'},
   
   // Header with buttons (expand/settings)
   header: {display:'flex', flexDirection:'column' as const, gap:'8px', padding:'8px', position:'absolute' as const, top:'0', left:'0', zIndex:10},
@@ -108,6 +109,7 @@ export default function Chat() {
   // Core chat functionality
   const [msgs, setMsgs] = useState<Msg[]>([]);                    // All chat messages
   const [isMobile, setIsMobile] = useState(false);                // Device detection
+  const [isProcessing, setIsProcessing] = useState(false);        // Message processing state
   
   // Product carousel management
   const [carouselStates, setCarouselStates] = useState<{[key: number]: {canScrollLeft: boolean, canScrollRight: boolean}}>({});
@@ -121,7 +123,7 @@ export default function Chat() {
   
   // User and session tracking
   const [sessionId, setSessionId] = useState<string | null>(null); // Current session ID
-  const [userId, setUserId] = useState<string | null>(null);     // Persistent user ID
+  const [webUserId, setWebUserId] = useState<string | null>(null);     // Persistent web user ID
   
   // History loading state
   const [historyLoaded, setHistoryLoaded] = useState(false);     // Prevent duplicate loading
@@ -146,47 +148,44 @@ export default function Chat() {
   // ===============================================
   
   // Load previous conversations from memory API
-  const loadChatHistory = async (currentSessionId: string, currentUserId: string) => {
-    if (historyLoaded || isLoadingHistory || !currentSessionId || !currentUserId) {
+  const loadChatHistory = async (currentSessionId: string, currentWebUserId: string) => {
+    if (historyLoaded || isLoadingHistory || !currentSessionId || !currentWebUserId) {
       return;
     }
     
     setIsLoadingHistory(true);
     
     try {
-      const response = await fetch(`/api/memory?session_id=${currentSessionId}&user_id=${currentUserId}`);
+      const response = await fetch(`/api/memory?session_id=${currentSessionId}&web_user_id=${currentWebUserId}`);
       const data = await response.json();
-      
-      console.log('📊 Memory API response:', data);
-      
+
       if (data.success && data.memory && data.memory.length > 0) {
-        console.log(`🔍 Found ${data.memory.length} total interactions in memory`);
-        
         // Get the last 5 interactions (conversations)
         const recentInteractions = data.memory.slice(-5);
-        console.log('📋 Processing', recentInteractions.length, 'recent interactions');
         
         // Convert interactions to chat messages
         const historyMessages: Msg[] = [];
         let currentId = 1; // Start with ID 1, new messages will continue from here
         
         // ✅ SIMPLIFIED: Process only router interactions with nested agent responses
-        const routerInteractions = recentInteractions.filter((interaction: any) => 
+        const routerInteractions = recentInteractions.filter((interaction: {
+          labels?: string;
+          agent_called?: boolean;
+          agent_response?: any;
+        }) => 
           interaction.labels === "router" && 
           interaction.agent_called === true &&
           interaction.agent_response // Only process router interactions with complete agent responses
         );
         
-        console.log(`📋 Found ${routerInteractions.length} complete router interactions with nested agent responses`);
-        
-        routerInteractions.forEach((routerInteraction: any) => {
-          console.log('🔍 Processing complete router interaction:', {
-            id: routerInteraction.id,
-            question: routerInteraction.question,
-            route: routerInteraction.route_decision,
-            has_agent_response: !!routerInteraction.agent_response
-          });
-          
+        routerInteractions.forEach((routerInteraction: {
+          question?: string;
+          agent_response?: {
+            response?: string;
+            search_results?: any;
+            highlight_ids?: string[];
+          };
+        }) => {
           // ✅ Get user question from router
           const userQuestion = routerInteraction.question || '';
           
@@ -201,7 +200,6 @@ export default function Chat() {
               text: userQuestion,
               isUser: true
             });
-            console.log('✅ Added user message:', userQuestion);
           }
           
           // Add bot response  
@@ -211,7 +209,6 @@ export default function Chat() {
               text: botResponse,
               isUser: false
             });
-            console.log('✅ Added bot message:', botResponse);
           }
           
           // ✅ Add products if available from nested agent response
@@ -219,7 +216,7 @@ export default function Chat() {
             const searchResults = agentResponse.search_results;
             
             // Handle both direct results array and nested results object
-            let productResults = [];
+            let productResults: Product[] = [];
             if (Array.isArray(searchResults)) {
               productResults = searchResults;
             } else if (searchResults.results && Array.isArray(searchResults.results)) {
@@ -228,7 +225,7 @@ export default function Chat() {
             
             if (productResults.length > 0) {
               const products = productResults
-                .filter((product: any) => product && product.data && product.data.Bild && product.data.Titel) // ✅ Filter out malformed products
+                .filter((product: Product) => product && product.data && product.data.Bild && product.data.Titel) // ✅ Filter out malformed products
                 .map((product: Product) => ({
                   ...product,
                   isHighlighted: (agentResponse.highlight_ids || []).includes(product.id) || false
@@ -244,7 +241,6 @@ export default function Chat() {
                 isUser: false,
                 products: products
               });
-              console.log('✅ Added products message:', products.length, 'products');
             }
           }
         });
@@ -253,19 +249,13 @@ export default function Chat() {
         setMsgs(historyMessages);
         messageIdCounter.current = currentId; // Set counter to continue from where history ended
         
-        console.log(`✅ Successfully loaded ${recentInteractions.length} conversations (${historyMessages.length} messages)`);
-        console.log('📋 History messages:', historyMessages);
       } else {
-        console.log('ℹ️ No chat history found or session does not exist');
-        console.log('📊 Memory API returned:', { success: data.success, memoryLength: data.memory?.length || 0 });
       }
       
     } catch (error) {
-      console.error('❌ Failed to load chat history:', error);
     } finally {
       setIsLoadingHistory(false);
       setHistoryLoaded(true);
-      console.log('🏁 Chat history loading completed');
     }
   };
 
@@ -336,23 +326,17 @@ export default function Chat() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'consentUpdate') {
         const newSessionId = event.data.sessionId;
-        const newUserId = event.data.userId;
-        const wasConsentChange = sessionId !== newSessionId || userId !== newUserId;
-        
-        console.log('🔄 Consent update received:', { 
-          old: { sessionId, userId, hasConsent }, 
-          new: { sessionId: newSessionId, userId: newUserId, hasConsent: event.data.hasConsent },
-          wasConsentChange 
-        });
+        const newWebUserId = event.data.userId;
+        const wasConsentChange = sessionId !== newSessionId || webUserId !== newWebUserId;
         
         // ✅ If session IDs changed, we have a fresh start - reset everything
-        if (wasConsentChange && newSessionId && newUserId) {
-          console.log('🆕 New session detected - resetting chat state');
+                  if (wasConsentChange && newSessionId && newWebUserId) {
           
           // Clear all existing messages and state
           setMsgs([]);
           setCarouselStates({});
           setJumpingAvatars({});
+          setIsProcessing(false); // ✅ RESET PROCESSING STATE
           
           // Stop all loading animations
           Object.values(loadingMessages).forEach(state => {
@@ -371,7 +355,7 @@ export default function Chat() {
         // Update consent and session state
         setHasConsent(event.data.hasConsent);
         setSessionId(newSessionId);
-        setUserId(newUserId);
+                  setWebUserId(newWebUserId);
       } else if (event.data?.type === 'mobileInputFocus') {
         // On mobile, when input is focused, scroll to show latest messages
         if (isMobile && msgListRef.current) {
@@ -386,12 +370,12 @@ export default function Chat() {
         }
       } else if (event.data?.type === 'showConsent') {
         // ✅ Enhanced consent modal showing with complete state reset
-        console.log('📋 Parent requested consent modal - current state:', { showConsent, hasConsent, consentKey });
         
         // ✅ SOFORT alle Nachrichten und State löschen, bevor Modal erscheint
         setMsgs([]);
         setCarouselStates({});
         setJumpingAvatars({});
+        setIsProcessing(false); // ✅ RESET PROCESSING STATE
         
         // Stop all loading animations
         Object.values(loadingMessages).forEach(state => {
@@ -413,13 +397,13 @@ export default function Chat() {
         setTimeout(() => {
           setConsentKey(prev => prev + 1);
           setShowConsent(true);
-          console.log('✅ Consent modal shown with new key and clean state:', consentKey + 1);
         }, 50);
       } else if (event.data?.type === 'resetChat') {
         // Clear all messages when consent is revoked
         setMsgs([]);
         setCarouselStates({});
         setJumpingAvatars({});
+        setIsProcessing(false); // ✅ RESET PROCESSING STATE
         // Stop all loading animations
         Object.values(loadingMessages).forEach(state => {
           if (state.interval) {
@@ -437,7 +421,7 @@ export default function Chat() {
         messageIdCounter.current = 1;
         // ✅ Clear session IDs to ensure clean state
         setSessionId(null);
-        setUserId(null);
+        setWebUserId(null);
       } else if (event.data?.type === 'getScrollPosition') {
         // Don't capture scroll position - we'll scroll to bottom instead
         window.parent.postMessage({
@@ -470,25 +454,17 @@ export default function Chat() {
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [loadingMessages]);
+  }, [loadingMessages, isMobile, sessionId, webUserId]);
 
   // Load chat history when session IDs are available
   useEffect(() => {
-    console.log('History loading check:', { hasConsent, sessionId, userId, historyLoaded, isLoadingHistory, showConsent });
     
     // ✅ WICHTIG: Nicht laden wenn Consent-Modal sichtbar ist
-    if (hasConsent && sessionId && userId && !historyLoaded && !isLoadingHistory && !showConsent) {
-      console.log('✅ Loading chat history for session:', sessionId, 'user:', userId);
-      loadChatHistory(sessionId, userId);
+    if (hasConsent && sessionId && webUserId && !historyLoaded && !isLoadingHistory && !showConsent) {
+      loadChatHistory(sessionId, webUserId);
     } else {
-      if (!hasConsent) console.log('❌ No consent yet');
-      if (!sessionId) console.log('❌ No session ID yet');
-      if (!userId) console.log('❌ No user ID yet');
-      if (historyLoaded) console.log('ℹ️ History already loaded');
-      if (isLoadingHistory) console.log('⏳ Currently loading history');
-      if (showConsent) console.log('🚫 Consent modal visible - not loading history');
     }
-  }, [hasConsent, sessionId, userId, historyLoaded, isLoadingHistory, showConsent]);
+  }, [hasConsent, sessionId, webUserId, historyLoaded, isLoadingHistory, showConsent, loadChatHistory]);
 
   // Inject CSS styles for animations and responsive design
   useEffect(() => {
@@ -843,7 +819,7 @@ export default function Chat() {
         }, 100);
       }
     });
-  }, [msgs]);
+  }, [msgs, carouselStates]);
   
   // Handle mobile scrolling behavior - prevent body scroll while allowing message list scroll
   useEffect(() => {
@@ -956,7 +932,6 @@ export default function Chat() {
 
   // Handle user rejecting consent (clear all data and reset chat)
   const handleConsentReject = () => {
-    console.log('❌ User clicked Ablehnen - immediate cleanup');
     
     // ✅ SOFORT alle Nachrichten und State löschen beim Ablehnen-Klick
     setMsgs([]);
@@ -982,25 +957,18 @@ export default function Chat() {
     
     // Reset session IDs immediately
     setSessionId(null);
-    setUserId(null);
+    setWebUserId(null);
     
     // Reset consent key for clean state on next open
     setTimeout(() => {
       setConsentKey(prev => prev + 1);
     }, 100);
     
-    console.log('✅ All state cleaned up - notifying parent');
-    
     // Notify parent window about consent rejection
     window.parent.postMessage({type: 'consentRejected'}, '*');
   };
 
-  // Show consent dialog if user doesn't have consent
-  const showConsentDialog = () => {
-    if (!hasConsent) {
-      setShowConsent(true);
-    }
-  };
+  // Note: showConsentDialog removed as it was unused
 
   // Handle chat expand/collapse button click (desktop only)
   const handleExpand = () => {
@@ -1051,8 +1019,16 @@ export default function Chat() {
       
       // Handle search requests with loading animation and API call
       if (e.data?.type === 'search' && typeof e.data.text === 'string') {
+        // ✅ PREVENT MULTIPLE MESSAGES: Block if already processing
+        if (isProcessing) {
+          return; // Exit early if already processing a message
+        }
+        
         const currentSessionId = sessionId || e.data.sessionId;
-        const currentUserId = userId || e.data.userId;
+        const currentWebUserId = webUserId || e.data.userId;
+        
+        // ✅ SET PROCESSING STATE: Block new messages
+        setIsProcessing(true);
         
         // Generate unique message IDs using counter
         const userMsgId = messageIdCounter.current;
@@ -1070,6 +1046,11 @@ export default function Chat() {
         setMsgs(m => [...m, loadingMsg]);
         startLoadingAnimation(loadingMsgId);
         
+        // ✅ START THINKING ANIMATION: Avatar jumps immediately when bot starts thinking
+        setTimeout(() => {
+          setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
+        }, 100); // Small delay to ensure message is rendered
+        
         // Call the chat API with session ID and user ID
         fetch('/api/chat', {
           method: 'POST',
@@ -1081,25 +1062,27 @@ export default function Chat() {
             search_limit: 50,
             ranked_limit: 10,
             session_id: currentSessionId,
-            user_id: currentUserId
+            web_user_id: currentWebUserId
           })
         })
         .then(response => response.json())
         .then(data => {
           // ✅ CONSENT-CHECK: Blockiere Response wenn kein Consent mehr vorhanden
           if (!hasConsent) {
-            console.log('🚫 API response blocked - no consent');
             stopLoadingAnimation(loadingMsgId);
+            setJumpingAvatars(prev => ({...prev, [loadingMsgId]: false})); // Stop thinking animation
+            setIsProcessing(false); // ✅ RESET PROCESSING STATE
             return; // Früher Ausstieg - keine weitere Verarbeitung
           }
           
-          // Stop loading animation
+          // Stop loading animation and thinking avatar jump
           stopLoadingAnimation(loadingMsgId);
+          setJumpingAvatars(prev => ({...prev, [loadingMsgId]: false})); // Stop thinking animation
           
           // Prepare all products for display with highlight information
           const allProducts = data.success && data.search_results?.results 
             ? data.search_results.results
-                .filter((product: any) => product && product.data && product.data.Bild && product.data.Titel) // ✅ Filter out malformed products
+                .filter((product: Product) => product && product.data && product.data.Bild && product.data.Titel) // ✅ Filter out malformed products
                 .map((product: Product) => ({
                   ...product,
                   isHighlighted: data.highlight_ids?.includes(product.id) || false
@@ -1135,7 +1118,7 @@ export default function Chat() {
             setTimeout(() => {
               // ✅ CONSENT-CHECK: Blockiere Produkt-Message wenn kein Consent mehr vorhanden
               if (!hasConsent) {
-                console.log('🚫 Product message blocked - no consent');
+                setIsProcessing(false); // ✅ RESET PROCESSING STATE
                 return; // Keine Produkte anzeigen
               }
               
@@ -1156,23 +1139,29 @@ export default function Chat() {
                 setJumpingAvatars(prev => ({...prev, [productsMsgId]: true}));
                 setTimeout(() => {
                   setJumpingAvatars(prev => ({...prev, [productsMsgId]: false}));
+                  // ✅ RESET PROCESSING STATE: Message fully processed
+                  setIsProcessing(false);
                 }, 1200);
               }, 300);
             }, 1500);
+          } else {
+            // ✅ RESET PROCESSING STATE: No products, processing done
+            setIsProcessing(false);
           }
         })
-        .catch(error => {
-          console.error('Chat API error:', error);
+        .catch(() => {
           
           // ✅ CONSENT-CHECK: Blockiere Error-Response wenn kein Consent mehr vorhanden
           if (!hasConsent) {
-            console.log('🚫 API error response blocked - no consent');
             stopLoadingAnimation(loadingMsgId);
+            setJumpingAvatars(prev => ({...prev, [loadingMsgId]: false})); // Stop thinking animation
+            setIsProcessing(false); // ✅ RESET PROCESSING STATE
             return; // Früher Ausstieg - keine Error-Message anzeigen
           }
           
-          // Stop loading animation on error
+          // Stop loading animation and thinking avatar jump on error
           stopLoadingAnimation(loadingMsgId);
+          setJumpingAvatars(prev => ({...prev, [loadingMsgId]: false})); // Stop thinking animation
           
           // Replace loading message with error message
           const errorMsg = {
@@ -1187,13 +1176,17 @@ export default function Chat() {
               msg.id === loadingMsgId ? errorMsg : msg
             )
           );
+          
+          // ✅ RESET PROCESSING STATE: Error handled
+          setIsProcessing(false);
+
         });
       }
     };
     
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [sessionId, userId, loadingPhrases, startLoadingAnimation, stopLoadingAnimation]);
+  }, [sessionId, webUserId, loadingPhrases, startLoadingAnimation, stopLoadingAnimation, hasConsent, isProcessing]);
 
   // ===============================================
   // === COMPONENT RENDER ===
@@ -1338,8 +1331,15 @@ export default function Chat() {
           )}
           
           {msgs.map((m, index) => {
-            // Avatar only shows on the very last bot message (moves from text to products)
-            const isLastBotMessage = !m.isUser && index === msgs.findLastIndex(msg => !msg.isUser);
+            // Find the last bot message (including loading) for avatar display
+            let lastBotMessageIndex = -1;
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              if (!msgs[i].isUser && msgs[i].text && msgs[i].text.trim()) {
+                lastBotMessageIndex = i;
+                break;
+              }
+            }
+            const shouldShowAvatar = !m.isUser && m.text && m.text.trim() && index === lastBotMessageIndex;
             
             return m.isUser ? (
               /* ========== USER MESSAGE ========== */
@@ -1351,8 +1351,8 @@ export default function Chat() {
                 {/* ========== TEXT MESSAGE WITH AVATAR ========== */}
                 {m.text && (
                   <>
-                    {/* Show avatar for last bot message */}
-                    {isLastBotMessage ? (
+                    {/* Show avatar for bot messages */}
+                    {shouldShowAvatar ? (
                       <img 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
@@ -1362,7 +1362,53 @@ export default function Chat() {
                       <div style={s.avatarPlaceholder} />
                     )}
                     {/* Message text with loading animation if applicable */}
-                    <div style={s.botMsg} className={m.isLoading ? 'loading-text' : ''}>{m.text}</div>
+                    <div style={s.botMsg} className={m.isLoading ? 'loading-text' : ''}>
+                      {m.isLoading ? m.text : (
+                        <ReactMarkdown
+                          components={{
+                            // Style headers to be smaller and fit chat context
+                            h1: ({children}) => <h1 style={{fontSize: '16px', fontWeight: 'bold', margin: '8px 0 4px 0'}}>{children}</h1>,
+                            h2: ({children}) => <h2 style={{fontSize: '15px', fontWeight: 'bold', margin: '6px 0 3px 0'}}>{children}</h2>,
+                            h3: ({children}) => <h3 style={{fontSize: '14px', fontWeight: 'bold', margin: '4px 0 2px 0'}}>{children}</h3>,
+                            // Style lists to be compact
+                            ul: ({children}) => <ul style={{margin: '4px 0', paddingLeft: '16px'}}>{children}</ul>,
+                            ol: ({children}) => <ol style={{margin: '4px 0', paddingLeft: '16px'}}>{children}</ol>,
+                            li: ({children}) => <li style={{margin: '2px 0'}}>{children}</li>,
+                            // Style code blocks
+                            code: ({children}) => <code style={{backgroundColor: '#f5f5f5', padding: '2px 4px', borderRadius: '3px', fontSize: '13px'}}>{children}</code>,
+                            // Style blockquotes
+                            blockquote: ({children}) => <blockquote style={{borderLeft: '3px solid #ddd', paddingLeft: '8px', margin: '8px 0', fontStyle: 'italic'}}>{children}</blockquote>,
+                            // Style paragraphs to remove default margins
+                            p: ({children}) => <p style={{margin: '4px 0'}}>{children}</p>,
+                            // Handle links - open in parent website
+                            a: ({href, children}) => (
+                              <a 
+                                href={href}
+                                style={{
+                                  color: '#007AFF',
+                                  textDecoration: 'underline',
+                                  cursor: 'pointer'
+                                }}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  if (href) {
+                                    // Send message to parent window to navigate
+                                    window.parent.postMessage({
+                                      type: 'navigateToUrl',
+                                      url: href
+                                    }, '*');
+                                  }
+                                }}
+                              >
+                                {children}
+                              </a>
+                            ),
+                          }}
+                        >
+                          {m.text}
+                        </ReactMarkdown>
+                      )}
+                    </div>
                   </>
                 )}
                 
@@ -1370,8 +1416,8 @@ export default function Chat() {
                 {/* Products-only message full width */}
                 {m.products && m.products.length > 0 && !m.text && (
                   <>
-                    {/* Show avatar for last bot message on the left */}
-                    {isLastBotMessage ? (
+                    {/* Show avatar for bot messages on the left */}
+                    {shouldShowAvatar ? (
                       <img 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
@@ -1435,7 +1481,7 @@ export default function Chat() {
                               />
                               <div style={s.productTitle}>{product.data.Titel?.substring(0, 40)}...</div>
                               <div style={s.productInfo}>
-                                {product.data.Zoll}" | {product.data.Marke}
+                                {product.data.Zoll}&quot; | {product.data.Marke}
                               </div>
                             </div>
                           ))}
