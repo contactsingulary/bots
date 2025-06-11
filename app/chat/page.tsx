@@ -1036,9 +1036,15 @@ export default function Chat() {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'config') return null;
       
-      // Handle mobile status updates
+      // Handle mobile status updates and agent_id
       if (e.data?.type === 'mobileStatus' && typeof e.data.isMobile === 'boolean') {
         setIsMobile(e.data.isMobile);
+        
+        // Store agent_id from parent for future use
+        if (e.data.agent_id) {
+          (window as any).parentAgentId = e.data.agent_id;
+          console.log('✅ Received agent_id from parent:', e.data.agent_id);
+        }
       }
       
       // Handle search requests with loading animation and API call
@@ -1075,13 +1081,13 @@ export default function Chat() {
           setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
         }, 100); // Small delay to ensure message is rendered
         
-        // Get agent_id from parent message or use default
-        const agentId = e.data.agent_id || 'default';
+        // Get agent_id from parent message, stored value, or default
+        const agentId = e.data.agent_id || (window as any).parentAgentId || 'default';
         
         if (agentId && agentId !== 'default') {
-          console.log('✅ Using agent_id from parent:', agentId);
+          console.log('✅ Using agent_id:', agentId);
         } else {
-          console.log('⚠️ No agent_id from parent, using default');
+          console.log('⚠️ No valid agent_id available, using default');
         }
         
         // Call the chat API with session ID, user ID, and agent ID
