@@ -1042,7 +1042,7 @@ export default function Chat() {
         
         // Store agent_id from parent for future use
         if (e.data.agent_id) {
-          (window as any).parentAgentId = e.data.agent_id;
+          (window as Window & { parentAgentId?: string }).parentAgentId = e.data.agent_id;
           console.log('✅ Received agent_id from parent:', e.data.agent_id);
         }
       }
@@ -1082,7 +1082,7 @@ export default function Chat() {
         }, 100); // Small delay to ensure message is rendered
         
         // Get agent_id from parent message, stored value, or default
-        const agentId = e.data.agent_id || (window as any).parentAgentId || 'default';
+        const agentId = e.data.agent_id || (window as Window & { parentAgentId?: string }).parentAgentId || 'default';
         
         if (agentId && agentId !== 'default') {
           console.log('✅ Using agent_id:', agentId);
