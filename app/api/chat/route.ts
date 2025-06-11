@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const ROUTER_SERVICE_URL = process.env.ROUTER_SERVICE_URL;
-const AGENT_ID = process.env.AGENT_ID || 'e1bb97f1-88aa-49e7-9a2e-785ea2c84adb'; // Default agent ID
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +8,11 @@ export async function POST(request: NextRequest) {
       message, 
       session_id, 
       web_user_id,
+      agent_id,
     } = await request.json();
+    
+    // Use agent_id from request, fallback to env, then to default
+    const AGENT_ID = agent_id || process.env.AGENT_ID;
     
     if (!message || typeof message !== 'string') {
       return NextResponse.json(

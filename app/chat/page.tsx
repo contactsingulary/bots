@@ -3,6 +3,23 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } fr
 import ReactMarkdown from 'react-markdown';
 import Image from 'next/image';
 
+// Type declaration for window.embedApp
+declare global {
+  interface Window {
+    embedApp?: {
+      config?: {
+        agent_id?: string;
+        color?: string;
+        variant?: string;
+        themeMode?: string;
+        fontFamily?: string;
+        timestamp?: string;
+      };
+      init?: () => void;
+    };
+  }
+}
+
 // ===============================================
 // === TYPE DEFINITIONS ===
 // ===============================================
@@ -1058,7 +1075,10 @@ export default function Chat() {
           setJumpingAvatars(prev => ({...prev, [loadingMsgId]: true}));
         }, 100); // Small delay to ensure message is rendered
         
-        // Call the chat API with session ID and user ID
+        // Get agent_id from window.embedApp.config
+        const agentId = (window as any).embedApp?.config?.agent_id || 'default';
+        
+        // Call the chat API with session ID, user ID, and agent ID
         fetch('/api/chat', {
           method: 'POST',
           headers: {
@@ -1069,7 +1089,8 @@ export default function Chat() {
             search_limit: 50,
             ranked_limit: 10,
             session_id: currentSessionId,
-            web_user_id: currentWebUserId
+            web_user_id: currentWebUserId,
+            agent_id: agentId
           })
         })
         .then(response => response.json())
