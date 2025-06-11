@@ -898,6 +898,7 @@ export default function Chat() {
       document.body.style.overflow = '';
       document.documentElement.style.overflow = '';
       
+      // Capture the current container ref value to avoid stale closures
       const currentContainer = containerRef.current;
       if (currentContainer) {
         currentContainer.removeEventListener('touchstart', trackTouch);
@@ -911,7 +912,7 @@ export default function Chat() {
         currentContainer.style.height = '';
       }
     };
-  }, [isMobile]);
+  }, [isMobile]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===============================================
   // === EVENT HANDLERS ===
@@ -1359,7 +1360,7 @@ export default function Chat() {
                   <>
                     {/* Show avatar for bot messages */}
                     {shouldShowAvatar ? (
-                      <Image 
+                      <img 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
                         width={18}
@@ -1426,7 +1427,7 @@ export default function Chat() {
                   <>
                     {/* Show avatar for bot messages on the left */}
                     {shouldShowAvatar ? (
-                      <Image 
+                      <img 
                         src="https://images.squarespace-cdn.com/content/641c5981823d0207a111bb74/999685ce-589d-4f5f-9763-4e094070fb4b/64e9502e4159bed6f8f57b071db5ac7e+%281%29.gif"
                         alt="Assistant"
                         width={18}
@@ -1487,6 +1488,7 @@ export default function Chat() {
                                 width={100}
                                 height={60}
                                 style={s.productImage}
+                                unoptimized={true}
                                 onError={(e) => {
                                   e.currentTarget.style.display = 'none';
                                 }}

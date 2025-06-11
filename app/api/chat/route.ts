@@ -8,7 +8,11 @@ export async function POST(request: NextRequest) {
     const { 
       message, 
       session_id, 
-      web_user_id
+      web_user_id,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      search_limit,
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ranked_limit,
     } = await request.json();
     
     if (!message || typeof message !== 'string') {
