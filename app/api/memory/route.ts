@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const LOAD_SERVICE_URL = process.env.LOAD_SERVICE_URL || 'http://load_singulary_dev:8000';
+const LOAD_SERVICE_URL = process.env.LOAD_SERVICE_URL;
 
 export async function GET(request: NextRequest) {
   try {
