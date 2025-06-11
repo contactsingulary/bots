@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ROUTER_SERVICE_URL = process.env.ROUTER_SERVICE_URL || 'http://agent_router_dev:8000';
+const ROUTER_SERVICE_URL = process.env.ROUTER_SERVICE_URL;
 const AGENT_ID = process.env.AGENT_ID || 'e1bb97f1-88aa-49e7-9a2e-785ea2c84adb'; // Default agent ID
 
 export async function POST(request: NextRequest) {
@@ -9,10 +9,6 @@ export async function POST(request: NextRequest) {
       message, 
       session_id, 
       web_user_id,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      search_limit,
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      ranked_limit,
     } = await request.json();
     
     if (!message || typeof message !== 'string') {
